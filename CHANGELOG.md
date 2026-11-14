@@ -16,6 +16,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Documentation styling follows shadcn's neutral theme tokens.
 - Reverse-mode automatic differentiation with broadcasting-aware gradients, gradient clipping and a finite-difference gradient checker.
 - Differentiable activations, softmax, cross-entropy, embeddings, slicing, concatenation, masking, dropout, RMS normalisation and rotary embeddings.
+- Worker-parallel matrix products on shared memory and a benchmark suite that records the machine profile.
 
 ### Fixed
 
