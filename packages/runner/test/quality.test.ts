@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test'
 import { Tensor } from '@scantling/tensor'
+import type { TokenFile } from '@scantling/datasets'
+import { spreadEvaluationBatches } from '../src/evaluation.ts'
 import { START_STATE, endsInLoop, hasMismatchedBrackets, matchingPrefix, nextTokenAccuracy, scanBrackets } from '../src/quality.ts'
 
 test('bracket checks accept balanced and cut-off code and reject crossings', () => {
@@ -41,4 +43,14 @@ test('loops are detected by period', () => {
 	expect(endsInLoop(Array.from({ length: 30 }, (_, index) => index))).toBe(false)
 	expect(endsInLoop([9, 8, ...Array.from({ length: 30 }, (_, index) => [1, 2, 3][index % 3]!)])).toBe(true)
 	expect(endsInLoop([1, 2, 3])).toBe(false)
+})
+
+test('evaluation windows are spread evenly over the file and are deterministic', () => {
+	const file = { count: 100, read: (start: number, count: number) => Int32Array.from({ length: count }, (_, index) => start + index) } as unknown as TokenFile
+	const first = spreadEvaluationBatches(file, 8, 2, 3)
+	expect(first.length).toBe(3)
+	expect(first[0]!.inputs[0]).toBe(0)
+	expect(first[2]!.inputs[8]).toBe(91)
+	expect(first[0]!.targets[0]).toBe(1)
+	expect(spreadEvaluationBatches(file, 8, 2, 3)).toEqual(first)
 })

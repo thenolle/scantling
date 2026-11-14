@@ -70,7 +70,7 @@ const memoryLimit = option('--max-memory-gib') === undefined ? budget.trainingMe
 const needed = estimateParallelMemory(model.parameterCount(), workers, rounds, value('--worker-mib', 150) * MIB)
 if (gpuDevice === undefined && needed > memoryLimit) throw new Error(`Not enough memory: ${formatBytes(profile.memory.availableBytes)} of ${formatBytes(profile.memory.totalBytes)} is free, minus a ${reserveGiB} GiB reserve leaves ${formatBytes(budget.trainingMemoryBytes)}, but ${workers} workers with ${rounds} micro-batches each need at least ${formatBytes(needed)} plus activations. Close other programs, lower --workers or --rounds, or pass --max-memory-gib N to override.`)
 
-const schedule = warmupCosine({ peak: value('--peak-lr', 2e-3), warmupSteps: Math.max(20, Math.floor(steps * 0.05)), totalSteps: steps })
+const schedule = warmupCosine({ peak: value('--peak-lr', 2e-3), warmupSteps: Math.min(Math.max(20, Math.floor(steps * 0.05)), Math.floor(steps / 2)), totalSteps: steps })
 const trainer = gpuDevice === undefined ? new ParallelTrainer({ model, optimizer, schedule, workers, rounds, maxGradNorm: 1, maxMemoryBytes: memoryLimit }) : new GpuTrainer({ model, optimizer, schedule, device: gpuDevice, microBatch: gpuMicroBatch, length, accumulation: gpuAccumulation, maxGradNorm: 1 })
 
 const store = new CheckpointStore(`data/checkpoints/${name}`)
@@ -153,12 +153,14 @@ const usage = monitor.stop()
 checkpoint()
 
 const seconds = (performance.now() - started) / 1000
+const gpuHeld = gpuDevice?.memory().allocatedBytes
 logger.info(summary.stopped ? 'Stopped early' : 'Finished', {
 	steps: trainer.step,
 	tokensSeen: trainer.step * tokensPerStep,
 	epochs: Number(((trainer.step * tokensPerStep) / train.count).toFixed(2)),
 	minutes: Number((seconds / 60).toFixed(1)),
 	peakMemory: formatBytes(usage.peakRssBytes),
+	...(gpuHeld === undefined ? {} : { gpuMemory: formatBytes(gpuHeld) }),
 	finalValidationLoss: Number(lastEval.loss.toFixed(4)),
 	perplexity: Number(lastEval.perplexity.toFixed(2)),
 	bitsPerByte: Number(bitsPerByte(lastEval.loss, evalTargets.length, evalBytes).toFixed(3)),

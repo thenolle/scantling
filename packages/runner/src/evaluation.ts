@@ -1,5 +1,7 @@
 import type { RegressionResult } from '@scantling/checkpoint'
 import type { Tensor } from '@scantling/tensor'
+import type { TokenFile } from '@scantling/datasets'
+import type { Batch } from '@scantling/training'
 
 /**
  * Cross-entropy, in nats per token, of `validation` under a unigram model fitted to `train` with
@@ -41,4 +43,27 @@ export function smokeChecks(params: readonly { readonly name: string; readonly v
 		{ name: 'validation loss is finite', passed: Number.isFinite(validationLoss) },
 		{ name: 'beats the unigram baseline', passed: validationLoss < baseline, detail: `validation ${validationLoss.toFixed(4)} against baseline ${baseline.toFixed(4)}` }
 	]
+}
+
+/**
+ * `batches` batches of `batch` windows spread evenly over the whole token file, so that a few documents at the start
+ * do not decide the score. Deterministic.
+ */
+export function spreadEvaluationBatches(file: TokenFile, length: number, batch: number, batches: number): Batch[] {
+	const windows = batch * batches
+	const span = file.count - length - 1
+	if (span < 1) throw new RangeError('The validation file is too short for this window length')
+	const result: Batch[] = []
+	for (let first = 0; first < windows; first += batch) {
+		const inputs = new Int32Array(batch * length)
+		const targets = new Int32Array(batch * length)
+		for (let row = 0; row < batch; row += 1) {
+			const start = Math.floor(((first + row) * span) / Math.max(1, windows - 1))
+			const chunk = file.read(start, length + 1)
+			inputs.set(chunk.subarray(0, length), row * length)
+			targets.set(chunk.subarray(1, length + 1), row * length)
+		}
+		result.push({ inputs, targets, batch, length })
+	}
+	return result
 }
