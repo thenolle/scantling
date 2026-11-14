@@ -7,7 +7,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun scripts/serve.ts",
-    "build": "bun scripts/build.ts"
+    "build": "bun scripts/build.ts",
+    "preview": "bun scripts/preview.ts"
   },
   "dependencies": {
     "@gambrel/bun": "0.2.3",

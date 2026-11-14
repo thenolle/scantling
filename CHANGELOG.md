@@ -12,6 +12,8 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Validated layered configuration with environment overrides and a local-only server default.
 - Structured logging with secret redaction, file rotation and an in-memory buffer.
 - Tensor library with broadcasting, reductions, matrix products, softmax and seeded random numbers.
+- Documentation pages are prerendered with canonical URLs, Open Graph and X metadata, per-page social images, structured data, a sitemap and a web manifest.
+- Documentation styling follows shadcn's neutral theme tokens.
 
 ### Fixed
 
