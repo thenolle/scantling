@@ -67,9 +67,11 @@
       "name": "@scantling/runner",
       "version": "0.1.0",
       "dependencies": {
+        "@scantling/autodiff": "workspace:*",
         "@scantling/checkpoint": "workspace:*",
         "@scantling/datasets": "workspace:*",
         "@scantling/hardware": "workspace:*",
+        "@scantling/inference": "workspace:*",
         "@scantling/nn": "workspace:*",
         "@scantling/telemetry": "workspace:*",
         "@scantling/tensor": "workspace:*",
