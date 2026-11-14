@@ -19,7 +19,7 @@
     "dev": "bun run --filter @scantling/web dev",
     "build": "bun run --filter @scantling/web build",
     "start": "bun run --filter @scantling/web start",
-    "train": "bun packages/training/src/cli.ts",
+    "train": "bun packages/runner/src/train.ts",
     "train:overfit": "bun packages/training/src/overfit.ts",
     "train:scaling": "bun packages/training/src/scaling.ts",
     "bench": "bun tools/bench/src/cli.ts",

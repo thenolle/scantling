@@ -63,6 +63,20 @@
         "@scantling/tensor": "workspace:*",
       },
     },
+    "packages/runner": {
+      "name": "@scantling/runner",
+      "version": "0.1.0",
+      "dependencies": {
+        "@scantling/checkpoint": "workspace:*",
+        "@scantling/datasets": "workspace:*",
+        "@scantling/hardware": "workspace:*",
+        "@scantling/nn": "workspace:*",
+        "@scantling/telemetry": "workspace:*",
+        "@scantling/tensor": "workspace:*",
+        "@scantling/tokenizer": "workspace:*",
+        "@scantling/training": "workspace:*",
+      },
+    },
     "packages/telemetry": {
       "name": "@scantling/telemetry",
       "version": "0.1.0",
@@ -131,6 +145,8 @@
     "@scantling/inference": ["@scantling/inference@workspace:packages/inference"],
 
     "@scantling/nn": ["@scantling/nn@workspace:packages/nn"],
+
+    "@scantling/runner": ["@scantling/runner@workspace:packages/runner"],
 
     "@scantling/telemetry": ["@scantling/telemetry@workspace:packages/telemetry"],
 
