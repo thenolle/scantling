@@ -10,6 +10,8 @@
     "test": "bun test",
     "audit": "bun tools/audit-deps.ts",
     "check": "bun run typecheck && bun run audit && bun run test",
+    "hooks": "git config core.hooksPath .githooks",
+    "lint:commits": "bun tools/lint-commit.ts --range origin/master..HEAD",
     "docs": "bun run --filter @scantling/website dev",
     "docs:build": "bun run --filter @scantling/website build",
     "dev": "bun run --filter @scantling/web dev",

@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+    paths: [package.json]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Read version
+        run: echo "VERSION=$(jq -r .version package.json)" >> "$GITHUB_ENV"
+      - name: Check for an existing release
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "EXISTS=true" >> "$GITHUB_ENV"
+          else
+            echo "EXISTS=false" >> "$GITHUB_ENV"
+          fi
+      - name: Extract release notes
+        if: env.EXISTS == 'false'
+        run: bun tools/release-notes.ts "$VERSION" > release-notes.md
+      - name: Publish release
+        if: env.EXISTS == 'false'
+        run: |
+          flags=""
+          case "$VERSION" in 0.*) flags="--prerelease" ;; esac
+          gh release create "v$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "Scantling v$VERSION" \
+            --notes-file release-notes.md \
+            $flags

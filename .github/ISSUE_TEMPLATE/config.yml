@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/thenolle/scantling/security/advisories/new
+    about: Report vulnerabilities privately instead of opening a public issue.
+  - name: Documentation
+    url: https://thenolle.github.io/scantling/
+    about: Read the guides and reference before opening an issue.
