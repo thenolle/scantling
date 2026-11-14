@@ -20,6 +20,7 @@
     "build": "bun run --filter @scantling/web build",
     "start": "bun run --filter @scantling/web start",
     "train": "bun packages/training/src/cli.ts",
+    "train:overfit": "bun packages/training/src/overfit.ts",
     "bench": "bun tools/bench/src/cli.ts",
 		"tokenizer": "bun packages/tokenizer/src/cli.ts",
     "release": "bun tools/release.ts"

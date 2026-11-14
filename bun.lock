@@ -44,6 +44,15 @@
       "name": "@scantling/tokenizer",
       "version": "0.1.0",
     },
+    "packages/training": {
+      "name": "@scantling/training",
+      "version": "0.1.0",
+      "dependencies": {
+        "@scantling/autodiff": "workspace:*",
+        "@scantling/nn": "workspace:*",
+        "@scantling/tensor": "workspace:*",
+      },
+    },
     "packages/workers": {
       "name": "@scantling/workers",
       "version": "0.1.0",
@@ -90,6 +99,8 @@
     "@scantling/tensor": ["@scantling/tensor@workspace:packages/tensor"],
 
     "@scantling/tokenizer": ["@scantling/tokenizer@workspace:packages/tokenizer"],
+
+    "@scantling/training": ["@scantling/training@workspace:packages/training"],
 
     "@scantling/website": ["@scantling/website@workspace:website"],
 
