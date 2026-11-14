@@ -13,8 +13,7 @@ export interface ReduceOptions {
 type Kind = 'sum' | 'max' | 'min'
 
 function resolveAxes(rank: number, axes: number | readonly number[] | undefined): number[] {
-	if (axes === undefined) return Array.from({ length: rank }, (_, index) => index)
-	const list = (typeof axes === 'number' ? [axes] : axes).map((axis) => normalizeAxis(axis, rank))
+	const list = axes === undefined ? Array.from({ length: rank }, (_, index) => index) : (typeof axes === 'number' ? [axes] : axes).map((axis) => normalizeAxis(axis, rank))
 	return [...new Set(list)].sort((a, b) => b - a)
 }
 
