@@ -20,9 +20,9 @@ test('cached decoding matches full recomputation, with and without grouped-query
 		const incremental = new InferenceSession(model)
 		const prefill = incremental.feed(ids.slice(0, 6), { all: true })
 		for (let index = 0; index < 6; index += 1) expect(close(row(prefill, index), row(full, index))).toBe(true)
-		for (let index = 6; index < ids.length; index += 1) expect(close(incremental.feed([ids[index]!]), row(full, index))).toBe(true)
+		for (let index = 6; index < ids.length; index += 1) expect(close(incremental.feed([ids[index]!]).reshape([23]), row(full, index))).toBe(true)
 		expect(incremental.length).toBe(ids.length)
-		expect(close(new InferenceSession(model).feed(ids), row(full, ids.length - 1))).toBe(true)
+		expect(close(new InferenceSession(model).feed(ids).reshape([23]), row(full, ids.length - 1))).toBe(true)
 	}
 })
 
