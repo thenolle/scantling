@@ -11,6 +11,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Hardware detection and resource budgeting for memory, workers and disk, with a CLI report.
 - Validated layered configuration with environment overrides and a local-only server default.
 - Structured logging with secret redaction, file rotation and an in-memory buffer.
+- Tensor library with broadcasting, reductions, matrix products, softmax and seeded random numbers.
 
 ### Fixed
 
