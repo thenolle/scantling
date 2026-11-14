@@ -43,7 +43,9 @@
       "name": "@scantling/gpu",
       "version": "0.1.0",
       "dependencies": {
+        "@scantling/autodiff": "workspace:*",
         "@scantling/tensor": "workspace:*",
+        "@scantling/training": "workspace:*",
       },
     },
     "packages/hardware": {
