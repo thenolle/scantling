@@ -28,6 +28,7 @@
     "dataset": "bun packages/datasets/src/cli.ts",
     "checkpoint": "bun packages/checkpoint/src/cli.ts",
 		"generate": "bun packages/inference/src/cli.ts",
+		"profile": "bun packages/training/src/profile.ts",
     "release": "bun tools/release.ts"
   },
   "devDependencies": {

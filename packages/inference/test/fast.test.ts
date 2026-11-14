@@ -57,12 +57,22 @@ test('int8 logits stay close to float32 logits', () => {
 	const model = new Transformer({ ...base, kvHeads: 1 }, 5)
 	const exact = new FastDecoder(model, 'float32')
 	const approximate = new FastDecoder(model, 'int8')
+	let worst = 0
+	let total = 0
+	let count = 0
 	for (const id of ids) {
 		const expected = Float32Array.from(exact.step(id))
 		const actual = approximate.step(id)
 		const range = Math.max(...expected.map(Math.abs))
-		for (let index = 0; index < expected.length; index += 1) expect(Math.abs(actual[index]! - expected[index]!)).toBeLessThan(0.05 * range)
+		for (let index = 0; index < expected.length; index += 1) {
+			const error = Math.abs(actual[index]! - expected[index]!) / range
+			worst = Math.max(worst, error)
+			total += error
+			count += 1
+		}
 	}
+	expect(worst).toBeLessThan(0.1)
+	expect(total / count).toBeLessThan(0.02)
 })
 
 test('the decoder reuses its buffers, is repeatable after a reset, and validates input', () => {

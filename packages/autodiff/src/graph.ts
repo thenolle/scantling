@@ -55,6 +55,23 @@ export function parameter(value: T.Tensor, label = ''): Variable {
 
 let gradEnabled = true
 
+/** Optional per-operation timing for `bun run profile`. Disabled by default; the cost when off is one boolean check. */
+export const profiler = {
+	enabled: false,
+	mark: 0,
+	forward: new Map<string, number>(),
+	backward: new Map<string, number>(),
+	start(): void {
+		this.enabled = true
+		this.mark = performance.now()
+		this.forward.clear()
+		this.backward.clear()
+	},
+	stop(): void {
+		this.enabled = false
+	}
+}
+
 export function isGradEnabled(): boolean {
 	return gradEnabled
 }
@@ -73,6 +90,11 @@ export function noGrad<R>(work: () => R): R {
  * and at least one parent requires them.
  */
 export function record(value: T.Tensor, parents: readonly Variable[], backwardFn: BackwardFn, label: string): Variable {
+	if (profiler.enabled) {
+		const now = performance.now()
+		profiler.forward.set(label, (profiler.forward.get(label) ?? 0) + now - profiler.mark)
+		profiler.mark = now
+	}
 	const tracked = gradEnabled && parents.some((parent) => parent.requiresGrad)
 	return tracked ? new Variable(value, true, parents, backwardFn, label) : new Variable(value, false)
 }
@@ -119,13 +141,17 @@ export function backward(root: Variable, seed?: T.Tensor): void {
 			node.grad = node.grad === null ? grad.clone() : T.addInPlace(node.grad, grad)
 			continue
 		}
+		const tick = profiler.enabled ? performance.now() : 0
 		const contributions = node.backwardFn(grad)
+		if (profiler.enabled) profiler.backward.set(node.label, (profiler.backward.get(node.label) ?? 0) + performance.now() - tick)
 		node.parents.forEach((parent, position) => {
 			const contribution = contributions[position]
 			if (contribution === null || contribution === undefined || !parent.requiresGrad) return
 			if (!T.shapesEqual(contribution.shape, parent.shape)) throw new RangeError(`The gradient produced by "${node.label}" has shape [${contribution.shape.join(', ')}] but its input has shape [${parent.shape.join(', ')}]`)
 			const existing = pending.get(parent)
+			const accumulateStart = profiler.enabled ? performance.now() : 0
 			pending.set(parent, existing === undefined ? contribution : T.add(existing, contribution))
+			if (profiler.enabled && existing !== undefined) profiler.backward.set('gradient accumulation', (profiler.backward.get('gradient accumulation') ?? 0) + performance.now() - accumulateStart)
 		})
 	}
 }
