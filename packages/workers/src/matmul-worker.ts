@@ -1,5 +1,5 @@
 import { parentPort } from 'node:worker_threads'
-import { KERNELS } from '@scantling/tensor'
+import { KERNELS, accumulatorFor } from '@scantling/tensor'
 import type { MatmulJob, MatmulReply } from './jobs.ts'
 
 const port = parentPort
@@ -11,7 +11,7 @@ port.on('message', (job: MatmulJob) => {
 		const a = new Float32Array(job.a)
 		const b = new Float32Array(job.b)
 		const c = new Float32Array(job.c)
-		const acc = new Float64Array(job.n)
+		const acc = accumulatorFor(job.n)
 		const kernel = KERNELS[job.kind]
 		for (const piece of job.pieces) kernel(a, piece.ao, b, piece.bo, c, piece.co, job.m, job.k, job.n, acc, piece.i0, piece.i1)
 		reply = { ok: true }

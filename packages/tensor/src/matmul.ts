@@ -1,4 +1,4 @@
-import { KERNELS, kernelKind } from './kernels.ts'
+import { KERNELS, accumulatorFor, kernelKind } from './kernels.ts'
 import type { KernelKind } from './kernels.ts'
 import { broadcastShapes, broadcastStrides, sizeOf } from './shape.ts'
 import type { Shape } from './shape.ts'
@@ -85,7 +85,7 @@ export function matmul(a: Tensor, b: Tensor, options: MatmulOptions = {}): Tenso
 	const plan = planMatmul(a, b, options)
 	const kernel = KERNELS[plan.kind]
 	const out = new Float32Array(plan.count * plan.m * plan.n)
-	const acc = new Float64Array(plan.n)
+	const acc = accumulatorFor(plan.n)
 	for (let index = 0; index < plan.count; index += 1) kernel(a.data, plan.offsetsA[index]!, b.data, plan.offsetsB[index]!, out, index * plan.m * plan.n, plan.m, plan.k, plan.n, acc, 0, plan.m)
 	return new Tensor(plan.shape, out)
 }
