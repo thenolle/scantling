@@ -8,20 +8,25 @@ const publicDir = join(siteRoot, 'public')
 const cacheDir = join(siteRoot, '.cache')
 
 /**
- * The development server: the HTML shell at `/`, a live `nav.json` generated from `docs/`,
- * the Markdown sources under `/docs`, and the bundled application.
+ * The development server: the HTML shell at `/`, the bundled application at `/app.js`,
+ * a live `nav.json` generated from `docs/`, the Markdown sources under `/docs`,
+ * and the static assets in `public/`.
+ *
+ * `staticFiles` answers every request under its prefix, including missing files,
+ * so each directory needs its own distinct prefix or an explicit route.
  */
 export function createSiteApp(): App {
 	return createApp()
 		.use(async (context, next) => {
 			if (context.method !== 'GET' && context.method !== 'HEAD') return next()
-			if (context.url.pathname === '/') return new Response(context.method === 'HEAD' ? null : Bun.file(join(publicDir, 'index.html')), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' } })
+			const head = context.method === 'HEAD'
+			if (context.url.pathname === '/') return new Response(head ? null : Bun.file(join(publicDir, 'index.html')), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' } })
+			if (context.url.pathname === '/app.js') return new Response(head ? null : Bun.file(join(cacheDir, 'app.js')), { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' } })
 			if (context.url.pathname === '/docs/nav.json') return Response.json(await buildNav(docsRoot), { headers: { 'cache-control': 'no-cache' } })
 			return next()
 		})
 		.use(staticFiles({ directory: docsRoot, prefix: '/docs' }))
 		.use(staticFiles({ directory: publicDir, prefix: '/' }))
-		.use(staticFiles({ directory: cacheDir, prefix: '/' }))
 }
 
 function isAddressInUse(error: unknown): boolean {
