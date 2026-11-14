@@ -20,6 +20,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Byte-level BPE tokenizer with a code-aware pre-tokenizer, deterministic training, streaming decode and validated serialisation.
 - Measured benchmark results for matrix products on the development machine.
 - Decoder-only Transformer with rotary embeddings, grouped-query attention, SwiGLU, RMS normalisation, weight tying and a whole-model gradient check.
+- AdamW and SGD optimizers, warmup-cosine scheduling, gradient accumulation with clipping and skip-on-non-finite, and a cancellable trainer.
 
 ### Fixed
 
