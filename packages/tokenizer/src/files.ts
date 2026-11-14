@@ -32,7 +32,7 @@ export async function* collectTextFiles(paths: readonly string[], maxBytes = 1_0
 				if (text !== undefined) yield { path: current, text }
 				continue
 			}
-			for (const entry of entries) {
+			for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
 				if (SKIPPED.has(entry.name) || entry.name.endsWith('.lock')) continue
 				if (entry.isDirectory()) stack.push(join(current, entry.name))
 				else if (entry.isFile()) {

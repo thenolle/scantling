@@ -1,0 +1,16 @@
+{
+  "name": "@scantling/datasets",
+  "version": "0.1.0",
+  "license": "PolyForm-Strict-1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@scantling/telemetry": "workspace:*",
+    "@scantling/tensor": "workspace:*",
+    "@scantling/tokenizer": "workspace:*",
+    "@scantling/training": "workspace:*"
+  }
+}
