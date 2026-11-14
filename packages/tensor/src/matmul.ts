@@ -1,3 +1,5 @@
+import { KERNELS, kernelKind } from './kernels.ts'
+import type { KernelKind } from './kernels.ts'
 import { broadcastShapes, broadcastStrides, sizeOf } from './shape.ts'
 import type { Shape } from './shape.ts'
 import { Tensor } from './tensor.ts'
@@ -7,6 +9,21 @@ export interface MatmulOptions {
 	readonly transposeA?: boolean
 	/** Treat `b` as stored transposed: its last two axes are `[n, k]`. */
 	readonly transposeB?: boolean
+}
+
+/**
+ * Everything needed to run a (possibly batched) matrix product: dimensions, the output shape and
+ * where each matrix of the batch starts in the operands.
+ */
+export interface MatmulPlan {
+	readonly kind: KernelKind
+	readonly m: number
+	readonly k: number
+	readonly n: number
+	readonly shape: number[]
+	readonly count: number
+	readonly offsetsA: number[]
+	readonly offsetsB: number[]
 }
 
 function batchOffsets(batch: Shape, own: Shape, matrixSize: number): number[] {
@@ -26,65 +43,10 @@ function batchOffsets(batch: Shape, own: Shape, matrixSize: number): number[] {
 	return offsets
 }
 
-type Kernel = (a: Float32Array, ao: number, b: Float32Array, bo: number, c: Float32Array, co: number, m: number, k: number, n: number, acc: Float64Array) => void
-
-const nn: Kernel = (a, ao, b, bo, c, co, m, k, n, acc) => {
-	for (let i = 0; i < m; i += 1) {
-		acc.fill(0)
-		for (let p = 0; p < k; p += 1) {
-			const value = a[ao + i * k + p]!
-			const row = bo + p * n
-			for (let j = 0; j < n; j += 1) acc[j] = acc[j]! + value * b[row + j]!
-		}
-		const target = co + i * n
-		for (let j = 0; j < n; j += 1) c[target + j] = acc[j]!
-	}
-}
-
-const nt: Kernel = (a, ao, b, bo, c, co, m, k, n) => {
-	for (let i = 0; i < m; i += 1) {
-		const left = ao + i * k
-		for (let j = 0; j < n; j += 1) {
-			const right = bo + j * k
-			let total = 0
-			for (let p = 0; p < k; p += 1) total += a[left + p]! * b[right + p]!
-			c[co + i * n + j] = total
-		}
-	}
-}
-
-const tn: Kernel = (a, ao, b, bo, c, co, m, k, n, acc) => {
-	for (let i = 0; i < m; i += 1) {
-		acc.fill(0)
-		for (let p = 0; p < k; p += 1) {
-			const value = a[ao + p * m + i]!
-			const row = bo + p * n
-			for (let j = 0; j < n; j += 1) acc[j] = acc[j]! + value * b[row + j]!
-		}
-		const target = co + i * n
-		for (let j = 0; j < n; j += 1) c[target + j] = acc[j]!
-	}
-}
-
-const tt: Kernel = (a, ao, b, bo, c, co, m, k, n) => {
-	for (let i = 0; i < m; i += 1) {
-		for (let j = 0; j < n; j += 1) {
-			let total = 0
-			for (let p = 0; p < k; p += 1) total += a[ao + p * m + i]! * b[bo + j * k + p]!
-			c[co + i * n + j] = total
-		}
-	}
-}
-
 /**
- * Matrix product over the last two axes with batch broadcasting.
- *
- * `a` is `[...batchA, m, k]` and `b` is `[...batchB, k, n]`; the result is `[...batch, m, n]`
- * where `batch` is the broadcast of `batchA` and `batchB`. A rank-2 `b` is therefore applied
- * to every matrix of a batched `a`, which is what a linear layer needs.
- * Sums are accumulated in 64-bit floats and rounded once per output element.
+ * Validates the operands and describes the product. Throws `RangeError` on a shape mismatch.
  */
-export function matmul(a: Tensor, b: Tensor, options: MatmulOptions = {}): Tensor {
+export function planMatmul(a: Tensor, b: Tensor, options: MatmulOptions = {}): MatmulPlan {
 	if (a.rank < 2 || b.rank < 2) throw new RangeError('matmul needs tensors of rank 2 or more; reshape vectors first')
 	const transposeA = options.transposeA === true
 	const transposeB = options.transposeB === true
@@ -100,12 +62,30 @@ export function matmul(a: Tensor, b: Tensor, options: MatmulOptions = {}): Tenso
 	const batchA = a.shape.slice(0, -2)
 	const batchB = b.shape.slice(0, -2)
 	const batch = broadcastShapes(batchA, batchB)
-	const count = sizeOf(batch)
-	const offsetsA = batchOffsets(batch, batchA, aRows * aCols)
-	const offsetsB = batchOffsets(batch, batchB, bRows * bCols)
-	const kernel: Kernel = transposeA ? (transposeB ? tt : tn) : transposeB ? nt : nn
-	const out = new Float32Array(count * m * n)
-	const acc = new Float64Array(n)
-	for (let index = 0; index < count; index += 1) kernel(a.data, offsetsA[index]!, b.data, offsetsB[index]!, out, index * m * n, m, k, n, acc)
-	return new Tensor([...batch, m, n], out)
+	return {
+		kind: kernelKind(transposeA, transposeB),
+		m,
+		k,
+		n,
+		shape: [...batch, m, n],
+		count: sizeOf(batch),
+		offsetsA: batchOffsets(batch, batchA, aRows * aCols),
+		offsetsB: batchOffsets(batch, batchB, bRows * bCols)
+	}
+}
+
+/**
+ * Matrix product over the last two axes with batch broadcasting.
+ *
+ * `a` is `[...batchA, m, k]` and `b` is `[...batchB, k, n]`; the result is `[...batch, m, n]`
+ * where `batch` is the broadcast of `batchA` and `batchB`. A rank-2 `b` is therefore applied
+ * to every matrix of a batched `a`, which is what a linear layer needs.
+ */
+export function matmul(a: Tensor, b: Tensor, options: MatmulOptions = {}): Tensor {
+	const plan = planMatmul(a, b, options)
+	const kernel = KERNELS[plan.kind]
+	const out = new Float32Array(plan.count * plan.m * plan.n)
+	const acc = new Float64Array(plan.n)
+	for (let index = 0; index < plan.count; index += 1) kernel(a.data, plan.offsetsA[index]!, b.data, plan.offsetsB[index]!, out, index * plan.m * plan.n, plan.m, plan.k, plan.n, acc, 0, plan.m)
+	return new Tensor(plan.shape, out)
 }

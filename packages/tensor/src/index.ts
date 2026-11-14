@@ -1,5 +1,6 @@
 export * from './compare.ts'
 export * from './elementwise.ts'
+export * from './kernels.ts'
 export * from './layout.ts'
 export * from './matmul.ts'
 export * from './random.ts'
