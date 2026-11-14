@@ -9,6 +9,18 @@
         "typescript": "7.0.2",
       },
     },
+    "apps/chat": {
+      "name": "@scantling/chat",
+      "version": "0.1.0",
+      "dependencies": {
+        "@gambrel/bun": "0.2.3",
+        "@gambrel/core": "0.2.3",
+        "@scantling/checkpoint": "workspace:*",
+        "@scantling/inference": "workspace:*",
+        "@scantling/nn": "workspace:*",
+        "@scantling/tokenizer": "workspace:*",
+      },
+    },
     "packages/autodiff": {
       "name": "@scantling/autodiff",
       "version": "0.1.0",
@@ -146,6 +158,8 @@
     "@scantling/autodiff": ["@scantling/autodiff@workspace:packages/autodiff"],
 
     "@scantling/bench": ["@scantling/bench@workspace:tools/bench"],
+
+    "@scantling/chat": ["@scantling/chat@workspace:apps/chat"],
 
     "@scantling/checkpoint": ["@scantling/checkpoint@workspace:packages/checkpoint"],
 
