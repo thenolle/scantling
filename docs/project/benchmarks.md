@@ -84,3 +84,15 @@ Training the Tiny preset:
 | 8 workers, 4 micro-batches each | 1,761    |
 
 Phase timings at 8 workers show synchronisation costing 1.5 to 3% of a step. Decoding with the Tiny preset takes 1.12 to 1.28 ms per token, and with the Small preset 8.5 to 9 ms. Int8 weights shrink the model fourfold at 1 to 2% logit error but are slower to decode on this machine, so they are a memory option, not a speed option.
+
+## SIMD matrix kernel
+
+Single-thread matrix products with the WebAssembly SIMD kernel against the scalar kernels:
+
+| Kernel          | Scalar (GFLOP/s) | SIMD (GFLOP/s) |
+| --------------- | ---------------- | -------------- |
+| `nn`, 64 to 256 | 4.6 to 5.6       | 27 to 38       |
+| `nt`, 64 to 256 | 3.2 to 3.5       | 20 to 33       |
+| `tn`, 64 to 256 | 4.9 to 5.7       | 23 to 33       |
+
+A forward and backward step of the Tiny model on 2 sequences of 128 tokens fell from 746 ms to 156 ms. Matrix products went from 92% to 68% of the step.

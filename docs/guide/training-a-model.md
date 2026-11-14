@@ -49,3 +49,11 @@ A checkpoint becomes the stable one only if its validation loss is finite, no wo
 ```bash
 bun run generate -- --prompt "export function"
 ```
+
+## 6. Evaluate a checkpoint
+
+```bash
+bun run evaluate -- --checkpoint data/checkpoints/tiny-web
+```
+
+The report gives the validation loss and bits per byte against the unigram baseline, how often the true next token is the model's first or top-five choice, and a greedy completion test: from the first 48 tokens of held-out code, how many of the next 64 tokens the model reproduces and how often its output has mismatched brackets compared with the real code. Three samples are printed so you can read what the model writes.
