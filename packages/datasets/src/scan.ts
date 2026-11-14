@@ -5,7 +5,9 @@ const SENSITIVE_PATHS: readonly RegExp[] = [
 	/(^|[\\/])id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$/i,
 	/\.(pem|key|p12|pfx|jks|keystore)$/i,
 	/(^|[\\/])\.(npmrc|netrc|pgpass)$/i,
-	/(^|[\\/])(credentials?|secrets?)(\.[a-z]+)?$/i
+	/(^|[\\/])(credentials?|secrets?)(\.[a-z]+)?$/i,
+	/(^|[\\/])(secrets?|credentials?|private|\.ssh|\.aws|\.gnupg)[\\/]/i,
+	/(^|[\\/])[^\\/]*(secret|private[_-]?key|backup[_-]?key)[^\\/]*$/i
 ]
 
 const GENERATED_PATHS: readonly RegExp[] = [/(^|[\\/])generated([\\/]|$)/i, /\.min\.(js|css)$/i, /\.generated\./i]

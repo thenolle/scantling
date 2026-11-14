@@ -195,3 +195,10 @@ test('the repeat multiplier follows the matching path prefix', () => {
 	expect(repeatOf('F:\\corpus\\x.ts', weights)).toBe(1)
 	expect(repeatOf('F:\\web\\a.ts', undefined)).toBe(1)
 })
+
+test('folders and names that hold secrets are sensitive', () => {
+	expect(isSensitivePath('a/secrets/app.json')).toBe(true)
+	expect(isSensitivePath('a/.ssh/config')).toBe(true)
+	expect(isSensitivePath('a/app_secret')).toBe(true)
+	expect(isSensitivePath('a/src/index.ts')).toBe(false)
+})

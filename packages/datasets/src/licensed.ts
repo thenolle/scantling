@@ -1,7 +1,7 @@
 import { readdir } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-const ALLOWED = new Set(['mit', 'isc', 'bsd-2-clause', 'bsd-3-clause', 'apache-2.0', '0bsd', 'unlicense', 'cc0-1.0', 'blueoak-1.0.0'])
+const ALLOWED = new Set(['zlib', 'mit', 'isc', 'bsd-2-clause', 'bsd-3-clause', 'apache-2.0', '0bsd', 'unlicense', 'cc0-1.0', 'blueoak-1.0.0'])
 const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/i
 const LICENSE_FILE = /^(licen[sc]e|copying|notice)(\.[a-z]+)?$/i
 const MAX_FILE_BYTES = 200_000

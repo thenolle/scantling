@@ -12,7 +12,8 @@ for (const count of Object.values(weights)) if (!Number.isInteger(count) || coun
 function summarize(manifest: DatasetManifest): void {
 	const { totals } = manifest
 	console.log(`Included     ${totals.documents} documents, ${totals.bytes} bytes`)
-	console.log(`Tokens       ${totals.trainTokens} train, ${totals.validationTokens} validation (${(totals.bytes / Math.max(1, totals.trainTokens + totals.validationTokens)).toFixed(2)} bytes per token)`)
+	const distinct = manifest.files.reduce((total, file) => total + (file.status === 'included' ? (file.tokens ?? 0) : 0), 0)
+	console.log(`Tokens       ${totals.trainTokens} train (repeats counted), ${totals.validationTokens} validation; ${distinct} distinct tokens, ${(totals.bytes / Math.max(1, distinct)).toFixed(2)} bytes per token`)
 	const reasons = new Map<string, number>()
 	for (const file of manifest.files) { if (file.status === 'excluded') reasons.set((file.reason ?? 'unknown').split(':')[0]!, (reasons.get((file.reason ?? 'unknown').split(':')[0]!) ?? 0) + 1) }
 	const byExtension = new Map<string, number>()
