@@ -20,7 +20,7 @@
     "build": "bun run --filter @scantling/web build",
     "start": "bun run --filter @scantling/web start",
     "train": "bun packages/training/src/cli.ts",
-    "bench": "bun tools/bench.ts",
+    "bench": "bun tools/bench/src/cli.ts",
     "release": "bun tools/release.ts"
   },
   "devDependencies": {

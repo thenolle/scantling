@@ -1,0 +1,13 @@
+{
+  "name": "@scantling/bench",
+  "version": "0.1.0",
+  "license": "PolyForm-Strict-1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@scantling/autodiff": "workspace:*",
+    "@scantling/hardware": "workspace:*",
+    "@scantling/tensor": "workspace:*",
+    "@scantling/workers": "workspace:*"
+  }
+}
