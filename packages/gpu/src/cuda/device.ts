@@ -9,6 +9,8 @@ import { moduleSource } from './module'
 
 const MAX_GRID_Z = 65535
 const mib = (bytes: number): string => `${(bytes / 1_048_576).toFixed(0)} MiB`
+/** VRAM kept free for the display and other programs. */
+const RESERVE_BYTES = 256 * 1024 * 1024
 
 /** A region of a buffer, starting `offset` elements in. */
 export interface BufferSlice {
@@ -86,6 +88,8 @@ export class CudaDevice implements ComputeDevice {
 		this.#alive()
 		if (!Number.isInteger(length) || length < 0) throw new RangeError(`A buffer needs a non-negative integer length, received ${length}`)
 		const bytes = Math.max(1, length) * 4
+		const memory = this.memory()
+		if (bytes > memory.freeBytes - RESERVE_BYTES) throw new RangeError(`The GPU is out of memory: ${mib(bytes)} requested, ${mib(memory.freeBytes)} free of ${mib(memory.totalBytes)} (${mib(memory.allocatedBytes)} held by this process, ${mib(RESERVE_BYTES)} kept in reserve). The driver would let this spill into system memory, which is far slower, so it is refused. Use a smaller model, batch or context.`)
 		const out = new BigUint64Array(1)
 		const status = this.#api.symbols.cuMemAlloc_v2(out, BigInt(bytes))
 		if (status === 2) {
@@ -145,7 +149,10 @@ export class CudaDevice implements ComputeDevice {
 		const { m, k, n } = spec
 		const name: KernelName = spec.transposeA ? (spec.transposeB ? 'sgemm_tt' : 'sgemm_tn') : spec.transposeB ? 'sgemm_nt' : 'sgemm_nn'
 		const kernel = this.#kernel(name)
-		const strides = [spec.transposeA ? 1 : k, spec.transposeA ? m : 1, spec.transposeB ? 1 : n, spec.transposeB ? k : 1] as const
+		const lda = spec.lda ?? (spec.transposeA ? m : k)
+		const ldb = spec.ldb ?? (spec.transposeB ? k : n)
+		const ldc = spec.ldc ?? n
+		const strides = [spec.transposeA ? 1 : lda, spec.transposeA ? lda : 1, spec.transposeB ? 1 : ldb, spec.transposeB ? ldb : 1] as const
 		for (let first = 0; first < spec.batch; first += MAX_GRID_Z) {
 			const count = Math.min(MAX_GRID_Z, spec.batch - first)
 			const at = (pointer: bigint, offset: number | undefined, stride: number): bigint => pointer + BigInt(((offset ?? 0) + first * stride) * 4)
@@ -155,6 +162,7 @@ export class CudaDevice implements ComputeDevice {
 				{ type: 'u64', value: at(out.pointer, spec.offsetC, spec.strideC) },
 				{ type: 'u32', value: m }, { type: 'u32', value: n }, { type: 'u32', value: k },
 				{ type: 's32', value: strides[0] }, { type: 's32', value: strides[1] }, { type: 's32', value: strides[2] }, { type: 's32', value: strides[3] },
+				{ type: 's32', value: ldc },
 				{ type: 's64', value: BigInt(spec.strideA) }, { type: 's64', value: BigInt(spec.strideB) }, { type: 's64', value: BigInt(spec.strideC) },
 				{ type: 'f32', value: spec.alpha ?? 1 }, { type: 'f32', value: spec.beta ?? 0 }
 			])

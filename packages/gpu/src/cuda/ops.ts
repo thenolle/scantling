@@ -113,7 +113,36 @@ export const PROGRAMS = {
 		scalars: [],
 		rowOutputs: [{ buffer: 'out', expr: E.arg('total') }],
 		outputs: []
-	})
+	}),
+	embedding: E.rowKernel({
+		name: 'embedding',
+		buffers: ['table', 'ids', 'out'],
+		floats: [],
+		reductions: [],
+		scalars: [],
+		rowOutputs: [],
+		outputs: [{ buffer: 'out', expr: E.lookup('table', E.rowAt('ids')), fill: 0 }]
+	}),
+	embeddingBackward: E.rowKernel({
+		name: 'embeddingBackward',
+		buffers: ['dout', 'ids', 'dtable'],
+		floats: [],
+		reductions: [],
+		scalars: [],
+		rowOutputs: [],
+		outputs: [],
+		scatters: [{ buffer: 'dtable', rowIndex: E.rowAt('ids'), expr: E.at('dout') }]
+	}),
+	rope: E.rowKernel({
+		name: 'rope',
+		buffers: ['x', 'cos', 'sin', 'out'],
+		floats: [],
+		ints: ['group', 'period'],
+		reductions: [],
+		scalars: [],
+		rowOutputs: [],
+		outputs: [{ buffer: 'out', expr: E.add(E.mul(E.at('x'), E.table('cos')), E.mul(E.pair('x'), E.table('sin'))), fill: 0 }]
+	}),
 } satisfies Record<string, Program>
 
 export type ProgramName = keyof typeof PROGRAMS

@@ -27,6 +27,25 @@ export interface AdamWStep {
 }
 
 /**
+ * Rotary tables expanded to one entry per element, as the `rope` program reads them: `cos[pos * dim + c]` is the cosine
+ * of the pair `c` belongs to, and `sin` carries the sign (negative on even columns) so one formula rotates both elements
+ * of a pair. `inverse` rotates the other way, which is the gradient of the rotation. Interleaved pairs, as in autodiff `rope`.
+ */
+export function ropeTables(length: number, headDim: number, base: number): { cos: Float32Array; sin: Float32Array; inverse: Float32Array } {
+	const [cos, sin, inverse] = [new Float32Array(length * headDim), new Float32Array(length * headDim), new Float32Array(length * headDim)]
+	for (let position = 0; position < length; position += 1) {
+		for (let column = 0; column < headDim; column += 1) {
+			const angle = position * Math.pow(base, -(2 * (column >> 1)) / headDim)
+			const sign = column % 2 === 0 ? -1 : 1
+			cos[position * headDim + column] = Math.cos(angle)
+			sin[position * headDim + column] = sign * Math.sin(angle)
+			inverse[position * headDim + column] = -sign * Math.sin(angle)
+		}
+	}
+	return { cos, sin, inverse }
+}
+
+/**
  * The neural-network operations of the Transformer on device buffers, each checked against the autograd operations
  * in the tests. Every method validates buffer sizes before launching. Token ids and targets are stored as float32,
  * which is exact for ids below 16.7 million. Launches are asynchronous: synchronise or download before reading.
@@ -111,5 +130,32 @@ export class NeuralOps {
 		fits(x, count, 'sumSquares input')
 		fits({ buffer: out, offset: outOffset }, 1, 'sumSquares output')
 		this.device.runProgram('sumSquares', [1, 1, 1], BLOCK, { x, out: { buffer: out, offset: outOffset } }, { cols: count, window: 0 }, {})
+	}
+
+	/** `out[t] = table[ids[t]]` for `tokens` ids stored as floats. */
+	embedding(table: Operand, ids: Operand, out: Operand, tokens: number, dim: number): void {
+		fits(ids, tokens, 'embedding ids')
+		fits(out, tokens * dim, 'embedding output')
+		this.device.runProgram('embedding', [tokens, 1, 1], BLOCK, { table, ids, out }, { cols: dim, window: 0 }, {})
+	}
+
+	/** Adds each row of `dOut` into `dTable[ids[t]]`. Atomic, so rounding can differ between runs. */
+	embeddingBackward(dOut: Operand, ids: Operand, dTable: Operand, tokens: number, dim: number): void {
+		fits(dOut, tokens * dim, 'embeddingBackward gradient')
+		fits(ids, tokens, 'embeddingBackward ids')
+		this.device.runProgram('embeddingBackward', [tokens, 1, 1], BLOCK, { dout: dOut, ids, dtable: dTable }, { cols: dim, window: 0 }, {})
+	}
+
+	/**
+	 * Rotates `x`, laid out `[tokens, heads, headDim]`, using tables from `ropeTables` for `length` positions. The position of
+	 * a row is `(row / heads) mod length`. Pass the `inverse` table for the backward pass. `out` must not alias `x`.
+	 */
+	rope(x: Operand, cos: Operand, sin: Operand, out: Operand, tokens: number, heads: number, headDim: number, length: number): void {
+		const rows = tokens * heads
+		fits(x, rows * headDim, 'rope input')
+		fits(out, rows * headDim, 'rope output')
+		fits(cos, length * headDim, 'rope cos table')
+		fits(sin, length * headDim, 'rope sin table')
+		this.device.runProgram('rope', [rows, 1, 1], BLOCK, { x, cos, sin, out }, { cols: headDim, window: 0, group: heads, period: length }, {})
 	}
 }

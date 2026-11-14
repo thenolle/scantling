@@ -55,6 +55,10 @@ export interface MatmulSpec {
 	readonly offsetC?: number
 	readonly alpha?: number
 	readonly beta?: number
+	/** Elements between consecutive rows of the stored matrices. They default to tightly packed. */
+	readonly lda?: number
+	readonly ldb?: number
+	readonly ldc?: number
 }
 
 export interface ComputeDevice {
@@ -81,12 +85,13 @@ export function checkMatmul(spec: MatmulSpec, lengths: { readonly a: number; rea
 		if (!Number.isInteger(value) || value < 1) throw new RangeError(`matmul ${name} must be a positive integer, received ${value}`)
 	}
 	const { m, k, n, batch } = spec
-	if (batch > 1 && spec.strideC < m * n) throw new RangeError(`The output stride ${spec.strideC} is smaller than one result (${m * n})`)
-	const needs = (offset: number, stride: number, size: number): number => offset + (batch - 1) * stride + size
-	const a = needs(spec.offsetA ?? 0, spec.strideA, m * k)
-	const b = needs(spec.offsetB ?? 0, spec.strideB, k * n)
-	const c = needs(spec.offsetC ?? 0, spec.strideC, m * n)
-	if (a > lengths.a) throw new RangeError(`Operand A has ${lengths.a} elements but the product reads up to ${a}`)
-	if (b > lengths.b) throw new RangeError(`Operand B has ${lengths.b} elements but the product reads up to ${b}`)
-	if (c > lengths.c) throw new RangeError(`The output has ${lengths.c} elements but the product writes up to ${c}`)
+	if (batch > 1 && spec.strideC === 0) throw new RangeError('A batch of products needs a non-zero output stride')
+	const check = (label: string, lengthOfBuffer: number, offset: number, stride: number, rows: number, cols: number, ld: number): void => {
+		if (!Number.isInteger(ld) || ld < cols) throw new RangeError(`The leading dimension ${ld} of ${label} is smaller than its ${cols} columns`)
+		const reach = offset + (batch - 1) * stride + (rows - 1) * ld + cols
+		if (reach > lengthOfBuffer) throw new RangeError(`${label} has ${lengthOfBuffer} elements but the product reaches ${reach}`)
+	}
+	check('operand A', lengths.a, spec.offsetA ?? 0, spec.strideA, spec.transposeA ? k : m, spec.transposeA ? m : k, spec.lda ?? (spec.transposeA ? m : k))
+	check('operand B', lengths.b, spec.offsetB ?? 0, spec.strideB, spec.transposeB ? n : k, spec.transposeB ? k : n, spec.ldb ?? (spec.transposeB ? k : n))
+	check('the output', lengths.c, spec.offsetC ?? 0, spec.strideC, m, n, spec.ldc ?? n)
 }

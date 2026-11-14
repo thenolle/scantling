@@ -41,6 +41,7 @@ export function sgemmKernel(name: string, transposeA: boolean, transposeB: boole
 	const sak = load('s32', 'pSAk', regs.r())
 	const sbk = load('s32', 'pSBk', regs.r())
 	const sbj = load('s32', 'pSBj', regs.r())
+	const ldc = load('s32', 'pLdc', regs.r())
 	const bsa = load('s64', 'pBsA', regs.rd())
 	const bsb = load('s64', 'pBsB', regs.rd())
 	const bsc = load('s64', 'pBsC', regs.rd())
@@ -203,7 +204,7 @@ export function sgemmKernel(name: string, transposeA: boolean, transposeB: boole
 			emit(`add.s32 ${col}, ${col}, ${16 * j};`)
 			emit(`setp.lt.u32 ${colOkC}, ${col}, ${n};`)
 			emit(`and.pred ${inside}, ${rowOkC}, ${colOkC};`)
-			emit(`mad.lo.s32 ${index}, ${row}, ${n}, ${col};`)
+			emit(`mad.lo.s32 ${index}, ${row}, ${ldc}, ${col};`)
 			emit(`mad.wide.s32 ${target}, ${index}, 4, ${pc};`)
 			emit(`mul.f32 ${result}, ${acc[i * 4 + j]!}, ${alpha};`)
 			emit(`and.pred ${withBeta}, ${inside}, ${hasBeta};`)
@@ -216,7 +217,7 @@ export function sgemmKernel(name: string, transposeA: boolean, transposeB: boole
 	const params = [
 		'.param .u64 pA', '.param .u64 pB', '.param .u64 pC',
 		'.param .u32 pM', '.param .u32 pN', '.param .u32 pK',
-		'.param .s32 pSAi', '.param .s32 pSAk', '.param .s32 pSBk', '.param .s32 pSBj',
+		'.param .s32 pSAi', '.param .s32 pSAk', '.param .s32 pSBk', '.param .s32 pSBj', '.param .s32 pLdc',
 		'.param .s64 pBsA', '.param .s64 pBsB', '.param .s64 pBsC',
 		'.param .f32 pAlpha', '.param .f32 pBeta'
 	]

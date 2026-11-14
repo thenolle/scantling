@@ -4,6 +4,7 @@ import { Random, Tensor, randomNormal } from '@scantling/tensor'
 import { AdamW } from '@scantling/training'
 import { CudaDevice, NeuralOps } from '../src/index.ts'
 import type { DeviceBuffer } from '../src/index.ts'
+import { ropeTables } from '../src/index.ts'
 import { gpu } from './available.ts'
 
 const random = new Random(77)
@@ -132,5 +133,71 @@ gpu('the sum of squares works across a long row, and sizes are validated', () =>
 	const small = device.alloc(10)
 	expect(() => neural.softmax(small, small, 10, 10, 1)).toThrow(RangeError)
 	expect(() => neural.crossEntropy(small, small, small, small, 10, 10)).toThrow(RangeError)
+	device.dispose()
+})
+
+gpu('matmul honours leading dimensions and leaves the rest of the output alone', () => {
+	const { device, put, get } = setup()
+	for (const transposeA of [false, true]) {
+		for (const transposeB of [false, true]) {
+			const [m, k, n] = [9, 11, 7]
+			const [lda, ldb, ldc, offsetA, offsetB, offsetC] = [30, 25, 20, 5, 3, 4]
+			const aStored = transposeA ? [k, m] : [m, k]
+			const bStored = transposeB ? [n, k] : [k, n]
+			const aBig = normal([aStored[0]! * lda + offsetA]).data
+			const bBig = normal([bStored[0]! * ldb + offsetB]).data
+			const dense = (big: Float32Array, offset: number, rows: number, cols: number, ld: number): Float32Array => {
+				const out = new Float32Array(rows * cols)
+				for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) out[row * cols + col] = big[offset + row * ld + col]!
+				return out
+			}
+			const a = dense(aBig, offsetA, aStored[0]!, aStored[1]!, lda)
+			const b = dense(bBig, offsetB, bStored[0]!, bStored[1]!, ldb)
+			const expected = ops.matmul(parameter(new Tensor(aStored, a)), parameter(new Tensor(bStored, b)), { transposeA, transposeB }).value.data
+			const sentinel = 12345
+			const cBuffer = put(new Float32Array(m * ldc + offsetC).fill(sentinel))
+			device.matmul(put(aBig), put(bBig), cBuffer, { m, k, n, transposeA, transposeB, batch: 1, strideA: 0, strideB: 0, strideC: 0, lda, ldb, ldc, offsetA, offsetB, offsetC })
+			const result = get(cBuffer, m * ldc + offsetC)
+			for (let row = 0; row < m; row += 1) {
+				for (let col = 0; col < ldc; col += 1) {
+					const value = result[offsetC + row * ldc + col]!
+					if (col < n) expect(Math.abs(value - expected[row * n + col]!), `ta=${transposeA} tb=${transposeB} [${row},${col}]`).toBeLessThanOrEqual(1e-4)
+					else if (row * ldc + col + offsetC < result.length) expect(value).toBe(sentinel)
+				}
+			}
+		}
+	}
+	device.dispose()
+})
+
+gpu('RoPE matches the autograd rotation and its inverse undoes it', () => {
+	const { device, neural, put, get } = setup()
+	const [batch, length, heads, headDim, base] = [2, 6, 3, 8, 10000]
+	const tokens = batch * length
+	const x = normal([batch, length, heads, headDim])
+	const reference = ops.permute(ops.rope(ops.permute(parameter(x), [0, 2, 1, 3]), ops.ropeTables(length, headDim, { base })), [0, 2, 1, 3])
+	const tables = ropeTables(length, headDim, base)
+	const [input, cos, sin, inverse, out, back] = [put(x.data), put(tables.cos), put(tables.sin), put(tables.inverse), device.alloc(x.size), device.alloc(x.size)]
+	neural.rope(input, cos, sin, out, tokens, heads, headDim, length)
+	expectClose(get(out, x.size), reference.value.data, 'rotated')
+	neural.rope(out, cos, inverse, back, tokens, heads, headDim, length)
+	expectClose(get(back, x.size), x.data, 'round trip')
+	device.dispose()
+})
+
+gpu('embedding lookup and scatter-add match autograd, including repeated ids', () => {
+	const { device, neural, put, get } = setup()
+	const [vocab, dim] = [10, 6]
+	const table = parameter(normal([vocab, dim]))
+	const ids = [3, 7, 3, 3, 0, 9, 7]
+	const looked = ops.embedding(table, ids)
+	const upstream = normal([ids.length, dim])
+	backward(looked, upstream)
+	const [tableBuffer, idBuffer, out, dOut, dTable] = [put(table.value.data), put(ids), device.alloc(ids.length * dim), put(upstream.data), device.alloc(vocab * dim)]
+	device.fill(dTable, 0)
+	neural.embedding(tableBuffer, idBuffer, out, ids.length, dim)
+	neural.embeddingBackward(dOut, idBuffer, dTable, ids.length, dim)
+	expectClose(get(out, ids.length * dim), looked.value.data, 'lookup')
+	expectClose(get(dTable, vocab * dim), table.grad!.data, 'gradient', 1e-5, 1e-5)
 	device.dispose()
 })

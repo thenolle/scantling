@@ -6,4 +6,4 @@ export { CudaApi, CudaError, CudaUnavailableError, listCudaDevices } from './cud
 export type { CudaDeviceProperties } from './cuda/driver.ts'
 export { CudaDevice } from './cuda/device.ts'
 export type { BufferSlice } from './cuda/device.ts'
-export { NeuralOps } from './cuda/neural.ts'
+export { NeuralOps, ropeTables } from './cuda/neural.ts'

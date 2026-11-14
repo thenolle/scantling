@@ -19,6 +19,9 @@ export type Expr =
 	| { readonly kind: 'bin'; readonly op: 'add' | 'sub' | 'mul' | 'div' | 'max'; readonly a: Expr; readonly b: Expr }
 	| { readonly kind: 'un'; readonly op: 'neg' | 'exp' | 'log' | 'sqrt' | 'rsqrt'; readonly a: Expr }
 	| { readonly kind: 'sel'; readonly cmp: CompareOp; readonly a: Expr; readonly b: Expr; readonly yes: Expr; readonly no: Expr }
+	| { readonly kind: 'pair'; readonly buffer: string }
+	| { readonly kind: 'table'; readonly buffer: string }
+	| { readonly kind: 'lookup'; readonly buffer: string; readonly id: Expr }
 
 export const num = (value: number): Expr => ({ kind: 'num', value })
 export const arg = (name: string): Expr => ({ kind: 'arg', name })
@@ -91,10 +94,15 @@ function compile(expr: Expr, scope: Scope): string {
 		case 'col':
 		case 'row':
 		case 'index':
+		case 'pair':
+		case 'table':
 			reg = scope.load(expr)
 			break
 		case 'gather':
 			reg = scope.load(expr, compile(expr.position, scope))
+			break
+		case 'lookup':
+			reg = scope.load(expr, compile(expr.id, scope))
 			break
 		case 'bin': {
 			const [a, b] = [compile(expr.a, scope), compile(expr.b, scope)]
@@ -220,6 +228,8 @@ export interface RowSpec {
 	readonly name: string
 	readonly buffers: readonly string[]
 	readonly floats: readonly string[]
+	/** Extra integer launch parameters, such as `group` and `period` for `table` reads. */
+	readonly ints?: readonly string[]
 	/** Reductions over the valid columns of a row, in order. Later expressions may use earlier results as `arg(name)`. */
 	readonly reductions: readonly { readonly name: string; readonly op: 'sum' | 'max'; readonly expr: Expr }[]
 	/** Scalars derived from reductions and arguments, available as `arg(name)`. */
@@ -228,6 +238,8 @@ export interface RowSpec {
 	readonly rowOutputs: readonly { readonly buffer: string; readonly expr: Expr }[]
 	/** One value per element; columns beyond the valid window receive `fill`. */
 	readonly outputs: readonly { readonly buffer: string; readonly expr: Expr; readonly fill: number }[]
+	/** Atomic adds: `buffer[int(rowIndex) * cols + col] += expr` for every element. Order is not deterministic. */
+	readonly scatters?: readonly { readonly buffer: string; readonly rowIndex: Expr; readonly expr: Expr }[]
 }
 
 const BLOCK = 256
@@ -288,6 +300,25 @@ export function rowKernel(spec: RowSpec): Program {
 				emit(`cvt.rzi.u32.f32 ${target}, ${gathered};`)
 				emit(`add.u32 ${target}, ${target}, ${rowBase};`)
 				return read(need(pointers, node.buffer, 'buffer'), target)
+			}
+			if (node.kind === 'pair') {
+				const mate = regs.r()
+				emit(`xor.b32 ${mate}, ${col}, 1;`)
+				emit(`add.u32 ${mate}, ${mate}, ${rowBase};`)
+				return read(need(pointers, node.buffer, 'buffer'), mate)
+			}
+			if (node.kind === 'table') {
+				const entryRow = regs.r()
+				emit(`div.u32 ${entryRow}, ${row}, ${need(integers, 'group', 'integer')};`)
+				emit(`rem.u32 ${entryRow}, ${entryRow}, ${need(integers, 'period', 'integer')};`)
+				emit(`mad.lo.u32 ${entryRow}, ${entryRow}, ${cols}, ${col};`)
+				return read(need(pointers, node.buffer, 'buffer'), entryRow)
+			}
+			if (node.kind === 'lookup' && gathered !== undefined) {
+				const entryRow = regs.r()
+				emit(`cvt.rzi.u32.f32 ${entryRow}, ${gathered};`)
+				emit(`mad.lo.u32 ${entryRow}, ${entryRow}, ${cols}, ${col};`)
+				return read(need(pointers, node.buffer, 'buffer'), entryRow)
 			}
 			return fail('Unsupported read in a row kernel')
 		}
@@ -355,7 +386,7 @@ export function rowKernel(spec: RowSpec): Program {
 			emit(`@${first} st.global.f32 [${address}], ${value};`)
 		}
 	}
-	if (spec.outputs.length > 0) {
+	if (spec.outputs.length > 0 || (spec.scatters ?? []).length > 0) {
 		const [loop, done] = [nextLabel(), nextLabel()]
 		const [col, position, stop, inside] = [regs.r(), regs.r(), regs.p(), regs.p()]
 		emit(`mov.u32 ${col}, ${tid};`)
@@ -378,6 +409,14 @@ export function rowKernel(spec: RowSpec): Program {
 			emit(`mad.wide.u32 ${address}, ${position}, 4, ${need(pointers, output.buffer, 'buffer')};`)
 			emit(`st.global.f32 [${address}], ${values[slotIndex]!};`)
 		})
+		for (const scatter of spec.scatters ?? []) {
+			const [value, id] = [compile(scatter.expr, scope), compile(scatter.rowIndex, scope)]
+			const [target, address] = [regs.r(), regs.rd()]
+			emit(`cvt.rzi.u32.f32 ${target}, ${id};`)
+			emit(`mad.lo.u32 ${target}, ${target}, ${cols}, ${col};`)
+			emit(`mad.wide.u32 ${address}, ${target}, 4, ${need(pointers, scatter.buffer, 'buffer')};`)
+			emit(`red.global.add.f32 [${address}], ${value};`)
+		}
 		emit(`add.u32 ${col}, ${col}, ${BLOCK};`)
 		emit(`bra ${loop};`)
 		body.push(`${done}:`)
@@ -451,3 +490,10 @@ export function columnKernel(spec: ColumnSpec): Program {
 	body.push('$L_end:')
 	return { name: spec.name, text: entry(spec.name, signature(spec.buffers, ints, floatNames), regs, body), buffers: spec.buffers, ints, floats: floatNames }
 }
+
+/** The other element of the pair this column belongs to: `buffer[row * cols + (col xor 1)]`. */
+export const pair = (buffer: string): Expr => ({ kind: 'pair', buffer })
+/** `buffer[(((row / group) mod period) * cols) + col]`: a table indexed by position. Needs the `group` and `period` integers. */
+export const table = (buffer: string): Expr => ({ kind: 'table', buffer })
+/** `buffer[int(id) * cols + col]`: row `id` of a table, as in an embedding lookup. */
+export const lookup = (buffer: string, id: Expr): Expr => ({ kind: 'lookup', buffer, id })

@@ -79,11 +79,26 @@ export class CpuDevice implements ComputeDevice {
 			const aOffset = (spec.offsetA ?? 0) + index * spec.strideA
 			const bOffset = (spec.offsetB ?? 0) + index * spec.strideB
 			const cOffset = (spec.offsetC ?? 0) + index * spec.strideC
+			const dense = (data: Float32Array, offset: number, rows: number, cols: number, ld: number): Float32Array => {
+				if (ld === cols) return data.subarray(offset, offset + rows * cols)
+				const packed = new Float32Array(rows * cols)
+				for (let row = 0; row < rows; row += 1) packed.set(data.subarray(offset + row * ld, offset + row * ld + cols), row * cols)
+				return packed
+			}
+			const [rowsA, colsA] = spec.transposeA ? [k, m] : [m, k]
+			const [rowsB, colsB] = spec.transposeB ? [n, k] : [k, n]
 			const product = matmul(
-				new Tensor(spec.transposeA ? [k, m] : [m, k], left.data.subarray(aOffset, aOffset + m * k)),
-				new Tensor(spec.transposeB ? [n, k] : [k, n], right.data.subarray(bOffset, bOffset + k * n)),
+				new Tensor([rowsA, colsA], dense(left.data, aOffset, rowsA, colsA, spec.lda ?? colsA)),
+				new Tensor([rowsB, colsB], dense(right.data, bOffset, rowsB, colsB, spec.ldb ?? colsB)),
 				{ transposeA: spec.transposeA, transposeB: spec.transposeB }
 			)
+			const ldc = spec.ldc ?? n
+			for (let row = 0; row < m; row += 1) {
+				for (let col = 0; col < n; col += 1) {
+					const at = cOffset + row * ldc + col
+					out.data[at] = alpha * product.data[row * n + col]! + (beta === 0 ? 0 : beta * out.data[at]!)
+				}
+			}
 			for (let element = 0; element < m * n; element += 1) out.data[cOffset + element] = alpha * product.data[element]! + (beta === 0 ? 0 : beta * out.data[cOffset + element]!)
 		}
 	}
