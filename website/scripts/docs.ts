@@ -3,20 +3,16 @@ import { join } from 'node:path'
 import { parseFrontMatter } from '../src/frontmatter.ts'
 import type { DocNav, NavPage } from '../src/nav.ts'
 
-interface Site {
-	readonly title: string
-	readonly description: string
-	readonly repo: string
-	readonly sectionOrder: readonly string[]
+export interface NavOptions {
+	/** Overrides `url` from `site.json`, for example to preview a build locally. */
+	readonly url?: string
 }
 
 interface Entry extends NavPage {
 	readonly order: number
 }
 
-function prettify(segment: string): string {
-	return segment.replace(/[-_]+/g, ' ').replace(/^./, (char) => char.toUpperCase())
-}
+const prettify = (segment: string): string => segment.replace(/[-_]+/g, ' ').replace(/^./, (char) => char.toUpperCase())
 
 async function readJson(path: string): Promise<Record<string, unknown>> {
 	const file = Bun.file(path)
@@ -24,33 +20,25 @@ async function readJson(path: string): Promise<Record<string, unknown>> {
 	return typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
 }
 
-async function readSite(docsRoot: string): Promise<Site> {
-	const record = await readJson(join(docsRoot, 'site.json'))
-	const text = (key: string, fallback: string): string => {
-		const value = record[key]
-		return typeof value === 'string' ? value : fallback
-	}
-	const order = record['sectionOrder']
-	return {
-		title: text('title', 'Documentation'),
-		description: text('description', ''),
-		repo: text('repo', ''),
-		sectionOrder: Array.isArray(order) ? order.filter((item): item is string => typeof item === 'string') : []
-	}
-}
-
-async function readVersion(docsRoot: string): Promise<string> {
-	const version = (await readJson(join(docsRoot, '..', 'package.json')))['version']
-	return typeof version === 'string' ? version : '0.0.0'
+function summarize(body: string): string {
+	const block = body.split(/\n\s*\n/).map((part) => part.trim()).find((part) => part !== '' && !/^(#|```|~~~|>|[-*+]\s|\d+[.)]\s|\||---)/.test(part))
+	return (block ?? '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[`*_~]/g, '').replace(/\s+/g, ' ').trim()
 }
 
 /**
- * Builds the navigation tree from every Markdown file under `docsRoot`.
- * Front matter keys: `title`, `section`, `order`, `description`, `draft`.
+ * Builds the navigation tree and site settings from `docs/site.json` and every Markdown file under `docsRoot`.
+ * Front matter keys: `title`, `seoTitle`, `section`, `order`, `description`, `draft`.
  * Files or folders starting with `_` or `.` are skipped.
  */
-export async function buildNav(docsRoot: string): Promise<DocNav> {
-	const site = await readSite(docsRoot)
+export async function buildNav(docsRoot: string, options: NavOptions = {}): Promise<DocNav> {
+	const site = await readJson(join(docsRoot, 'site.json'))
+	const text = (key: string, fallback: string): string => {
+		const value = site[key]
+		return typeof value === 'string' ? value : fallback
+	}
+	const order = site['sectionOrder']
+	const sectionOrder = Array.isArray(order) ? order.filter((item): item is string => typeof item === 'string') : []
+	const url = new URL(options.url ?? text('url', 'http://localhost:4000/')).href.replace(/\/?$/, '/')
 	const files = (await readdir(docsRoot, { recursive: true })).map((file) => file.replace(/\\/g, '/')).filter((file) => file.endsWith('.md') && file.split('/').every((part) => !/^[_.]/.test(part)))
 	const entries: Entry[] = []
 	for (const file of files.sort()) {
@@ -58,27 +46,35 @@ export async function buildNav(docsRoot: string): Promise<DocNav> {
 		if (meta['draft'] === 'true') continue
 		const path = file.slice(0, -3)
 		const folder = path.includes('/') ? (path.split('/')[0] ?? '') : ''
-		const order = Number(meta['order'])
+		const position = Number(meta['order'])
 		entries.push({
 			path,
 			title: meta['title'] ?? /^#\s+(.+)$/m.exec(body)?.[1] ?? path,
+			seoTitle: meta['seoTitle'] ?? '',
 			section: meta['section'] ?? (folder === '' ? 'Overview' : prettify(folder)),
-			description: meta['description'] ?? '',
-			order: Number.isFinite(order) ? order : 999
+			description: meta['description'] ?? summarize(body),
+			order: Number.isFinite(position) ? position : 999
 		})
 	}
 	const grouped = new Map<string, Entry[]>()
 	for (const entry of entries) grouped.set(entry.section, [...(grouped.get(entry.section) ?? []), entry])
 	const rank = (title: string): number => {
-		const index = site.sectionOrder.indexOf(title)
+		const index = sectionOrder.indexOf(title)
 		return index === -1 ? Number.MAX_SAFE_INTEGER : index
 	}
-	const sections = [...grouped.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([title, list]) => ({ title, pages: list.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title)).map(({ path, title: pageTitle, section, description }) => ({ path, title: pageTitle, section, description })) }))
+	const manifest = await readJson(join(docsRoot, '..', 'package.json'))
+	const version = manifest['version']
 	return {
-		title: site.title,
-		description: site.description,
-		repo: site.repo,
-		version: await readVersion(docsRoot),
-		sections
+		title: text('title', 'Documentation'),
+		tagline: text('tagline', ''),
+		descriptor: text('descriptor', 'documentation'),
+		description: text('description', ''),
+		repo: text('repo', ''),
+		version: typeof version === 'string' ? version : '0.0.0',
+		url,
+		language: text('language', 'en'),
+		author: text('author', ''),
+		twitter: text('twitter', ''),
+		sections: [...grouped.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([title, list]) => ({ title, pages: list.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title)).map(({ path, title: pageTitle, seoTitle, section, description }) => ({ path, title: pageTitle, seoTitle, section, description })) }))
 	}
 }

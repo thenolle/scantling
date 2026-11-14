@@ -1,5 +1,6 @@
 ---
 title: Scantling
+seoTitle: Scantling | Local-first AI coding assistant, from scratch
 section: Overview
 order: 1
 description: What Scantling is and where the project stands.

@@ -1,6 +1,11 @@
 {
   "title": "Scantling",
-  "description": "A local-first coding assistant built on its own language model.",
+  "tagline": "Scantling is a local-first AI coding assistant with its own model, built from scratch in TypeScript and Bun.",
+  "descriptor": "local-first AI coding assistant",
+  "description": "Documentation for Scantling, a local-first AI coding assistant whose tokenizer, neural network, training loop and tools are written from scratch in TypeScript.",
   "repo": "https://github.com/thenolle/scantling",
+  "url": "https://thenolle.github.io/scantling/",
+  "language": "en",
+  "author": "Nolly",
   "sectionOrder": ["Overview", "Guide", "Architecture", "Project"]
 }

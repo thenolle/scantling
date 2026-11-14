@@ -1,6 +1,7 @@
 import { escapeHtml } from './escape.ts'
 import { parseFrontMatter } from './frontmatter.ts'
 import { highlight } from './highlight.ts'
+import { routeHref } from './urls.ts'
 
 export interface Heading {
 	readonly level: number
@@ -16,6 +17,7 @@ export interface Rendered {
 
 export interface RenderOptions {
 	readonly docPath: string
+	readonly base?: string
 }
 
 interface State {
@@ -61,30 +63,30 @@ function resolvePath(docPath: string, target: string): string {
 	return segments.join('/')
 }
 
-function resolveHref(href: string, docPath: string): { href: string; external: boolean } | undefined {
+function resolveHref(href: string, options: RenderOptions): { href: string; external: boolean } | undefined {
 	if (/^(https?:|mailto:)/i.test(href)) return { href, external: !/^mailto:/i.test(href) }
 	if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return undefined
-	if (href.startsWith('#')) return { href: `#/${docPath}@${href.slice(1)}`, external: false }
+	if (href.startsWith('#')) return { href, external: false }
 	const [target = '', anchor] = href.split('#')
 	if (!target.endsWith('.md')) return { href, external: false }
-	const route = resolvePath(docPath, target.slice(0, -3))
-	return { href: `#/${route}${anchor === undefined ? '' : `@${anchor}`}`, external: false }
+	const route = routeHref(options.base ?? '/', resolvePath(options.docPath, target.slice(0, -3)))
+	return { href: anchor === undefined ? route : `${route}#${anchor}`, external: false }
 }
 
-function assetUrl(src: string, docPath: string): string | undefined {
+function assetUrl(src: string, options: RenderOptions): string | undefined {
 	if (/^https?:/i.test(src)) return src
 	if (/^[a-z][a-z0-9+.-]*:/i.test(src)) return undefined
-	return `docs/${resolvePath(docPath, src)}`
+	return `${options.base ?? '/'}docs/${resolvePath(options.docPath, src)}`
 }
 
 function renderSpans(text: string, options: RenderOptions): string {
 	return escapeHtml(text)
 		.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_match: string, alt: string, src: string) => {
-			const url = assetUrl(src, options.docPath)
+			const url = assetUrl(src, options)
 			return url === undefined ? alt : `<img src="${url}" alt="${alt}" loading="lazy">`
 		})
 		.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_match: string, label: string, href: string) => {
-			const link = resolveHref(href, options.docPath)
+			const link = resolveHref(href, options)
 			if (link === undefined) return label
 			const target = link.external ? ' target="_blank" rel="noopener noreferrer"' : ''
 			return `<a href="${link.href}"${target}>${label}</a>`
@@ -212,7 +214,7 @@ function renderBlocks(lines: readonly string[], state: State): string {
 			const plain = raw.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[`*~]/g, '')
 			const id = uniqueId(slugify(plain), state.used)
 			state.headings.push({ level, id, text: plain })
-			const anchor = `<a class="anchor" href="#/${escapeHtml(state.options.docPath)}@${id}" aria-label="Link to this section">#</a>`
+			const anchor = `<a class="anchor" href="#${id}" aria-label="Link to this section">#</a>`
 			out.push(`<h${level} id="${id}">${renderInline(raw, state.options)}${anchor}</h${level}>`)
 			i += 1
 			continue

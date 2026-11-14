@@ -20,9 +20,15 @@ describe('markdown renderer', () => {
 		expect(html).not.toContain('href')
 	})
 
-	test('rewrites relative markdown links to routes', () => {
+	test('rewrites relative markdown links to page URLs', () => {
 		const html = render(['[x](../architecture/overview.md#top)']).html
-		expect(html).toContain('href="#/architecture/overview@top"')
+		expect(html).toContain('href="/architecture/overview/#top"')
+		const prefixed = renderMarkdown('[x](index.md)', { docPath: 'guide/page', base: '/scantling/' }).html
+		expect(prefixed).toContain('href="/scantling/"')
+	})
+
+	test('heading anchors link to the fragment', () => {
+		expect(render(['## Install']).html).toContain('href="#install"')
 	})
 
 	test('opens external links safely', () => {

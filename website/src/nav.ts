@@ -1,6 +1,7 @@
 export interface NavPage {
 	readonly path: string
 	readonly title: string
+	readonly seoTitle: string
 	readonly section: string
 	readonly description: string
 }
@@ -12,9 +13,15 @@ export interface NavSection {
 
 export interface DocNav {
 	readonly title: string
+	readonly tagline: string
+	readonly descriptor: string
 	readonly description: string
 	readonly repo: string
 	readonly version: string
+	readonly url: string
+	readonly language: string
+	readonly author: string
+	readonly twitter: string
 	readonly sections: readonly NavSection[]
 }
 
@@ -33,6 +40,7 @@ function parsePage(value: unknown): NavPage {
 	return {
 		path: field(value, 'path'),
 		title: field(value, 'title'),
+		seoTitle: field(value, 'seoTitle'),
 		section: field(value, 'section'),
 		description: field(value, 'description')
 	}
@@ -50,9 +58,15 @@ export function parseNav(value: unknown): DocNav {
 	if (!isRecord(value) || !Array.isArray(value['sections'])) throw new Error('nav.json is malformed')
 	return {
 		title: field(value, 'title'),
+		tagline: field(value, 'tagline'),
+		descriptor: field(value, 'descriptor'),
 		description: field(value, 'description'),
 		repo: field(value, 'repo'),
 		version: field(value, 'version'),
+		url: field(value, 'url'),
+		language: field(value, 'language'),
+		author: field(value, 'author'),
+		twitter: field(value, 'twitter'),
 		sections: value['sections'].map(parseSection)
 	}
 }
