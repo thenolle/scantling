@@ -6,7 +6,7 @@ const RUNTIME_FIELDS = ['dependencies', 'optionalDependencies', 'peerDependencie
 const FORBIDDEN_FIELDS = ['bundledDependencies', 'bundleDependencies', 'overrides', 'resolutions', 'trustedDependencies'] as const
 const LIFECYCLE_SCRIPTS = ['preinstall', 'install', 'postinstall'] as const
 
-const IMPORT_PATTERN = /\b(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]|\bimport\s*['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]\s*\)|\brequire\(\s*['"]([^'"]+)['"]\s*\)/g
+const IMPORT_PATTERN = /(?<![\w$.'"`])(?:(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]|import\s*['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)|require\(\s*['"]([^'"]+)['"]\s*\))/g
 
 function asRecord(value: unknown): Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {}

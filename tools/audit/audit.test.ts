@@ -86,4 +86,9 @@ describe('dependency audit', () => {
 		const extra = { 'tools/audit.baseline.json': JSON.stringify({ packages: [] }) }
 		expect(await rulesFor(extra)).toContain('lockfile')
 	})
+
+	test('ignores string literals that contain the word import', async () => {
+		const source = `export const rule = 'import'\nexport const rules = ['import', 'endpoint']\n`
+		expect(await rulesFor({ 'packages/a/src/index.ts': source })).toEqual([])
+	})
 })

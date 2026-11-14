@@ -1,5 +1,7 @@
 {
   "packages": [
+    "@gambrel/bun",
+    "@gambrel/core",
     "@types/bun",
     "@types/node",
     "@typescript/typescript-aix-ppc64",
