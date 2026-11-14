@@ -38,3 +38,15 @@ bun run train:scaling
 ## Not done, and why
 
 Cache tiling and activation buffer pooling are deferred until a profile shows they matter. Weight quantisation is not applied to training.
+
+## Profile of a training step
+
+Profiling a forward and backward pass of the Tiny model on 2 sequences of 128 tokens showed that matrix products take 91% of the 808 ms step (229 ms forward, 510 ms backward). Cross-entropy, softmax, SiLU and everything else together are about 9%. Optimising elementwise code can therefore gain a few percent at most, so the work went into the matrix kernels.
+
+The tied output head (a 4096 by 128 table used as a matrix on every token) accounts for about 40% of the Tiny model's compute.
+
+## SIMD matrix kernel
+
+A WebAssembly module, assembled by a small encoder in TypeScript, computes `C = A * B` in 4 by 8 blocks with 128-bit vectors. Operands are copied into WebAssembly memory, padded to whole blocks and transposed during the copy when needed, so one kernel serves all transpose modes. Accumulation is in float32 with a fixed order, so results are deterministic and independent of how rows are grouped, but they differ from the scalar kernels in the last digits.
+
+The path is used for products with at least 4 rows and 16,384 multiply-adds when the runtime supports SIMD. Set `SCANTLING_SIMD=0` to disable it.

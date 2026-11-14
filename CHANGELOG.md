@@ -27,6 +27,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - KV-cached inference with seeded sampling, stop handling, cancellation and context sliding.
 - Training runner that builds the model from a dataset, trains in parallel, evaluates against a unigram baseline, checkpoints and applies the promotion gate.
 - Allocation-free single-token decoder with optional int8 weights.
+- WebAssembly SIMD matrix kernel assembled from TypeScript, with automatic fallback, a profiler for training steps and memory diagnostics in the training runner.
 
 ### Changed
 
