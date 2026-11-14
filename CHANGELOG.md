@@ -26,6 +26,12 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Data-parallel training across worker threads, reproducible for a given worker count and equivalent to gradient accumulation.
 - KV-cached inference with seeded sampling, stop handling, cancellation and context sliding.
 - Training runner that builds the model from a dataset, trains in parallel, evaluates against a unigram baseline, checkpoints and applies the promotion gate.
+- Allocation-free single-token decoder with optional int8 weights.
+
+### Changed
+
+- Matrix kernels are unrolled and register-blocked; data-parallel training dispatches all micro-batches at once and reports phase timings.
+- Dataset scanning flags only secret-looking literals in source code and skips generated files.
 
 ### Fixed
 
