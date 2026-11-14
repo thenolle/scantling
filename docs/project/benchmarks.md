@@ -28,6 +28,20 @@ Measured with `bun run bench` on an Intel Core i5-12450H (12 logical cores), 15.
 | 8       | 5.60      | 7.93      | 8.87      |
 | 12      | 5.71      | 7.90      | 9.78      |
 
+## Small products
+
+A second run measured smaller sizes. Results vary by 20% or more between runs at these sizes.
+
+| Workers | 64 x 64 | 128 x 128 | 256 x 256 |
+| --- | --- | --- | --- |
+| 1 | 1.41 | 2.18 | 2.49 |
+| 2 | 2.98 | 3.95 | 4.05 |
+| 4 | 2.40 | 5.14 | 6.38 |
+| 8 | 2.59 | 5.71 | 7.81 |
+| 12 | 1.87 | 4.18 | 7.77 |
+
+Products below 2 MFLOP stay on the calling thread, and one extra worker is used per MFLOP up to the pool size.
+
 At 512 x 512 the best result is 4.0 times a single thread. A pool of one worker matches the calling thread, so the copy into shared memory is not a measurable cost at these sizes.
 
 ## Other operations

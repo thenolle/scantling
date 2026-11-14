@@ -3,7 +3,7 @@ import { allClose, matmul, Random, randomNormal } from '@scantling/tensor'
 import type { MatmulOptions } from '@scantling/tensor'
 import { ParallelMatmul } from '../src/index.ts'
 
-const parallel = new ParallelMatmul({ workers: 2, minimumFlops: 0 })
+const parallel = new ParallelMatmul({ workers: 2, minimumFlops: 0, minFlopsPerWorker: 0 })
 const random = new Random(5)
 
 afterAll(async () => {

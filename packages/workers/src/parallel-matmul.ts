@@ -5,8 +5,10 @@ import { WorkerPool } from './pool.ts'
 
 export interface ParallelMatmulOptions {
 	readonly workers: number
-	/** Products with fewer floating-point operations run on the calling thread. Defaults to 8 million. */
+	/** Products with fewer floating-point operations run on the calling thread. Defaults to 2 million. */
 	readonly minimumFlops?: number
+	/** One more worker is used for every this-many operations, up to the pool size. Defaults to 1 million. */
+	readonly minFlopsPerWorker?: number
 }
 
 const FLOAT_BYTES = Float32Array.BYTES_PER_ELEMENT
@@ -20,6 +22,7 @@ export class ParallelMatmul {
 	readonly size: number
 	readonly #pool: WorkerPool
 	readonly #minimumFlops: number
+	readonly #minFlopsPerWorker: number
 	#a = new SharedArrayBuffer(0)
 	#b = new SharedArrayBuffer(0)
 	#c = new SharedArrayBuffer(0)
@@ -27,7 +30,8 @@ export class ParallelMatmul {
 
 	constructor(options: ParallelMatmulOptions) {
 		this.size = options.workers
-		this.#minimumFlops = options.minimumFlops ?? 8_000_000
+		this.#minimumFlops = options.minimumFlops ?? 2_000_000
+		this.#minFlopsPerWorker = options.minFlopsPerWorker ?? 1_000_000
 		this.#pool = new WorkerPool(options.workers, new URL('./matmul-worker.ts', import.meta.url))
 	}
 
@@ -57,7 +61,8 @@ export class ParallelMatmul {
 		new Float32Array(this.#a, 0, a.size).set(a.data)
 		new Float32Array(this.#b, 0, b.size).set(b.data)
 		const totalRows = plan.count * plan.m
-		const parts = Math.min(totalRows, this.size * 2)
+		const useful = this.#minFlopsPerWorker <= 0 ? this.size : Math.min(this.size, Math.max(1, Math.floor(flops / this.#minFlopsPerWorker)))
+		const parts = Math.min(totalRows, useful === this.size ? this.size * 2 : useful)
 		const jobs: Promise<MatmulReply>[] = []
 		for (let part = 0; part < parts; part += 1) {
 			const start = Math.floor((part * totalRows) / parts)
