@@ -35,12 +35,13 @@ export interface StepTimings {
 }
 
 /**
- * A lower bound on the memory of data-parallel training in bytes, excluding activations: five copies of the
- * parameters on the main side (master weights, shared weights, gradient accumulator and two optimizer moments)
- * plus, per worker, a local copy of weights and gradients and `rounds` gradient slots.
+ * A lower bound on the memory of data-parallel training in bytes: five copies of the parameters on the main
+ * side (master weights, shared weights, gradient accumulator and two optimizer moments), plus, per worker, a
+ * local copy of weights and gradients and `rounds` gradient slots, plus `workerOverheadBytes` per worker for
+ * activations and the worker's runtime. A measured Tiny run needed about 150 MiB per worker.
  */
-export function estimateParallelMemory(parameterCount: number, workers: number, rounds = 1): number {
-	return 4 * parameterCount * (5 + workers * (2 + rounds))
+export function estimateParallelMemory(parameterCount: number, workers: number, rounds = 1, workerOverheadBytes = 0): number {
+	return 4 * parameterCount * (5 + workers * (2 + rounds)) + workers * workerOverheadBytes
 }
 
 /**

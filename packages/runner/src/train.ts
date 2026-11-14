@@ -7,7 +7,7 @@ import { createRuntimeLogger } from '@scantling/telemetry'
 import { Random } from '@scantling/tensor'
 import { Tokenizer } from '@scantling/tokenizer'
 import { bitsPerByte, smokeChecks, tokenBytes, unigramLoss } from './evaluation.ts'
-import { GIB, ResourceMonitor, computeBudget, detectHardware, formatBytes } from '@scantling/hardware'
+import { GIB, MIB, ResourceMonitor, computeBudget, detectHardware, formatBytes } from '@scantling/hardware'
 import { AdamW, ParallelTrainer, estimateParallelMemory, warmupCosine } from '@scantling/training'
 
 const args = Bun.argv.slice(2)
@@ -51,7 +51,7 @@ const baseline = unigramLoss(train.read(0, Math.min(train.count, 20_000_000)), e
 const evalBytes = tokenBytes(tokenizer, evalTargets)
 
 const memoryLimit = option('--max-memory-gib') === undefined ? budget.trainingMemoryBytes : value('--max-memory-gib', 0) * GIB
-const needed = estimateParallelMemory(model.parameterCount(), workers, rounds)
+const needed = estimateParallelMemory(model.parameterCount(), workers, rounds, value('--worker-mib', 150) * MIB)
 if (needed > memoryLimit) throw new Error(`Not enough memory: ${formatBytes(profile.memory.availableBytes)} of ${formatBytes(profile.memory.totalBytes)} is free, minus a ${reserveGiB} GiB reserve leaves ${formatBytes(budget.trainingMemoryBytes)}, but ${workers} workers with ${rounds} micro-batches each need at least ${formatBytes(needed)} plus activations. Close other programs, lower --workers or --rounds, or pass --max-memory-gib N to override.`)
 
 const trainer = new ParallelTrainer({
