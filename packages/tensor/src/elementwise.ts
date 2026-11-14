@@ -57,20 +57,47 @@ export function zip(a: Tensor, b: Tensor, fn: BinaryFn): Tensor {
 	return new Tensor(shape, out)
 }
 
-export const add = (a: Tensor, b: Tensor): Tensor => zip(a, b, (x, y) => x + y)
-export const sub = (a: Tensor, b: Tensor): Tensor => zip(a, b, (x, y) => x - y)
-export const mul = (a: Tensor, b: Tensor): Tensor => zip(a, b, (x, y) => x * y)
-export const div = (a: Tensor, b: Tensor): Tensor => zip(a, b, (x, y) => x / y)
+function direct(a: Tensor, b: Tensor, same: (x: Float32Array, y: Float32Array, out: Float32Array) => void, general: BinaryFn): Tensor {
+	if (!shapesEqual(a.shape, b.shape)) return zip(a, b, general)
+	const out = new Float32Array(a.data.length)
+	same(a.data, b.data, out)
+	return new Tensor(a.shape, out)
+}
+
+export const add = (a: Tensor, b: Tensor): Tensor => direct(a, b, (x, y, out) => { for (let i = 0; i < out.length; i += 1) out[i] = x[i]! + y[i]! }, (x, y) => x + y)
+export const sub = (a: Tensor, b: Tensor): Tensor => direct(a, b, (x, y, out) => { for (let i = 0; i < out.length; i += 1) out[i] = x[i]! - y[i]! }, (x, y) => x - y)
+export const mul = (a: Tensor, b: Tensor): Tensor => direct(a, b, (x, y, out) => { for (let i = 0; i < out.length; i += 1) out[i] = x[i]! * y[i]! }, (x, y) => x * y)
+export const div = (a: Tensor, b: Tensor): Tensor => direct(a, b, (x, y, out) => { for (let i = 0; i < out.length; i += 1) out[i] = x[i]! / y[i]! }, (x, y) => x / y)
 export const maximum = (a: Tensor, b: Tensor): Tensor => zip(a, b, (x, y) => (x > y || x !== x ? x : y))
 export const minimum = (a: Tensor, b: Tensor): Tensor => zip(a, b, (x, y) => (x < y || x !== x ? x : y))
 export const pow = (a: Tensor, b: Tensor): Tensor => zip(a, b, Math.pow)
 
-export const addScalar = (t: Tensor, value: number): Tensor => map(t, (x) => x + value)
-export const mulScalar = (t: Tensor, value: number): Tensor => map(t, (x) => x * value)
+export function addScalar(t: Tensor, value: number): Tensor {
+	const x = t.data
+	const out = new Float32Array(x.length)
+	for (let i = 0; i < out.length; i += 1) out[i] = x[i]! + value
+	return new Tensor(t.shape, out)
+}
+export function mulScalar(t: Tensor, value: number): Tensor {
+	const x = t.data
+	const out = new Float32Array(x.length)
+	for (let i = 0; i < out.length; i += 1) out[i] = x[i]! * value
+	return new Tensor(t.shape, out)
+}
 
-export const neg = (t: Tensor): Tensor => map(t, (x) => -x)
+export function neg(t: Tensor): Tensor {
+	const x = t.data
+	const out = new Float32Array(x.length)
+	for (let i = 0; i < out.length; i += 1) out[i] = -x[i]!
+	return new Tensor(t.shape, out)
+}
 export const abs = (t: Tensor): Tensor => map(t, Math.abs)
-export const square = (t: Tensor): Tensor => map(t, (x) => x * x)
+export function square(t: Tensor): Tensor {
+	const x = t.data
+	const out = new Float32Array(x.length)
+	for (let i = 0; i < out.length; i += 1) out[i] = x[i]! * x[i]!
+	return new Tensor(t.shape, out)
+}
 export const sqrt = (t: Tensor): Tensor => map(t, Math.sqrt)
 export const exp = (t: Tensor): Tensor => map(t, Math.exp)
 export const log = (t: Tensor): Tensor => map(t, Math.log)
