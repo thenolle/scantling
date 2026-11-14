@@ -23,7 +23,7 @@ describe('markdown renderer', () => {
 	test('rewrites relative markdown links to page URLs', () => {
 		const html = render(['[x](../architecture/overview.md#top)']).html
 		expect(html).toContain('href="/architecture/overview/#top"')
-		const prefixed = renderMarkdown('[x](index.md)', { docPath: 'guide/page', base: '/scantling/' }).html
+		const prefixed = renderMarkdown('[x](../index.md)', { docPath: 'guide/page', base: '/scantling/' }).html
 		expect(prefixed).toContain('href="/scantling/"')
 	})
 
