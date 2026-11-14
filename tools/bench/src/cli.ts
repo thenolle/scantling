@@ -41,7 +41,7 @@ for (const n of sizes) {
 const poolSizes = [...new Set([1, 2, 4, budget.workerThreads, profile.cpu.logicalCores])].filter((size) => size <= profile.cpu.logicalCores).sort((x, y) => x - y)
 for (const size of poolSizes) {
 	const pool = new ParallelMatmul({ workers: size, minimumFlops: 0 })
-	for (const n of sizes.filter((value) => value >= 128)) {
+	for (const n of sizes.filter((value) => value >= 64)) {
 		const a = T.randomNormal([n, n], random)
 		const b = T.randomNormal([n, n], random)
 		const sample = await measure(`parallel ${size} ${n}`, () => pool.matmul(a, b))
