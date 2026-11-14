@@ -2,7 +2,7 @@ export const REDACTED = '[redacted]'
 
 const MAX_DEPTH = 6
 const MAX_ITEMS = 100
-const SENSITIVE_KEY = /pass(word|wd)?|secret|token|api[-_]?key|authorization|cookie|credential|private[-_]?key/i
+const SENSITIVE_KEY = /pass(word|wd)?|secret|api[-_]?key|authorization|cookie|credential|private[-_]?key|token$/i
 
 export interface SecretPattern {
 	readonly name: string

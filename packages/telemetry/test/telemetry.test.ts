@@ -80,3 +80,11 @@ test('timing helpers report plausible values', async () => {
 	expect(throughput(500, 250)).toBe(2000)
 	expect(throughput(1, 0)).toBe(0)
 })
+
+test('masks keys that end in token but not counters that mention tokens', () => {
+	const result = sanitize({ accessToken: 'abc', token: 'abc', tokensPerSecond: 5, trainTokens: 9 }) as Record<string, unknown>
+	expect(result['accessToken']).toBe(REDACTED)
+	expect(result['token']).toBe(REDACTED)
+	expect(result['tokensPerSecond']).toBe(5)
+	expect(result['trainTokens']).toBe(9)
+})
