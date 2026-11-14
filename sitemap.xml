@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url><loc>https://thenolle.github.io/scantling/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/guide/getting-started/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/guide/development/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/guide/writing-docs/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/guide/seo-and-sharing/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/guide/training-a-model/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/overview/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/dependency-policy/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/resource-management/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/configuration-and-logging/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/tensor-library/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/automatic-differentiation/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/parallelism-and-benchmarks/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/tokenizer/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/transformer/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/training/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/dataset-pipeline/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/checkpoints/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/parallel-training/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/inference/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/performance/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/architecture/gpu/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/project/roadmap/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/project/limitations/</loc><lastmod>2026-11-14</lastmod></url>
+<url><loc>https://thenolle.github.io/scantling/project/benchmarks/</loc><lastmod>2026-11-14</lastmod></url>
+</urlset>
