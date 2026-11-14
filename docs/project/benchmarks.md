@@ -33,12 +33,12 @@ Measured with `bun run bench` on an Intel Core i5-12450H (12 logical cores), 15.
 A second run measured smaller sizes. Results vary by 20% or more between runs at these sizes.
 
 | Workers | 64 x 64 | 128 x 128 | 256 x 256 |
-| --- | --- | --- | --- |
-| 1 | 1.41 | 2.18 | 2.49 |
-| 2 | 2.98 | 3.95 | 4.05 |
-| 4 | 2.40 | 5.14 | 6.38 |
-| 8 | 2.59 | 5.71 | 7.81 |
-| 12 | 1.87 | 4.18 | 7.77 |
+| ------- | ------- | --------- | --------- |
+| 1       | 1.41    | 2.18      | 2.49      |
+| 2       | 2.98    | 3.95      | 4.05      |
+| 4       | 2.40    | 5.14      | 6.38      |
+| 8       | 2.59    | 5.71      | 7.81      |
+| 12      | 1.87    | 4.18      | 7.77      |
 
 Products below 2 MFLOP stay on the calling thread, and one extra worker is used per MFLOP up to the pool size.
 
@@ -64,3 +64,23 @@ The ceiling divides the best measured throughput (9.78 GFLOP/s) by `6 * paramete
 | Small         | 14 M                  | 116 tokens/s    |
 
 At the ceiling, 10 million tokens take about 2.2 hours for Tiny and about 24 hours for Small.
+
+## After kernel unrolling
+
+The matrix kernels process two output rows and unroll the shared dimension by four. Single-thread results on the development machine:
+
+| Kernel          | Before (GFLOP/s) | After (GFLOP/s) |
+| --------------- | ---------------- | --------------- |
+| `nn`, 64 to 256 | 2.2 to 2.4       | 5.2 to 5.7      |
+| `tn`, 64 to 256 | 2.2 to 2.5       | 5.0 to 5.9      |
+| `nt`, 64 to 256 | 1.8 to 2.0       | 3.3 to 3.6      |
+
+Training the Tiny preset:
+
+| Setup                           | Tokens/s |
+| ------------------------------- | -------- |
+| Sequential, before and after    | 236, 435 |
+| 8 workers, 1 micro-batch each   | 1,350    |
+| 8 workers, 4 micro-batches each | 1,761    |
+
+Phase timings at 8 workers show synchronisation costing 1.5 to 3% of a step. Decoding with the Tiny preset takes 1.12 to 1.28 ms per token, and with the Small preset 8.5 to 9 ms. Int8 weights shrink the model fourfold at 1 to 2% logit error but are slower to decode on this machine, so they are a memory option, not a speed option.

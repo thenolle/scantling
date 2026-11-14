@@ -11,13 +11,13 @@ Every change here is judged by a benchmark run before and after. Speed claims ar
 
 ## What limits each workload
 
-| Workload                  | Limit                                       | Reasoning                                                                                                                             |
-| ------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Matrix products           | Instruction throughput in scalar JavaScript | About 2.4 GFLOP/s is far below what L2 bandwidth supports, so cache tiling would gain nothing yet                                     |
-| Dot-product (`nt`) kernel | Floating-point add latency                  | One accumulator serialises every add, and the kernel was the slowest at about 2.0 GFLOP/s                                             |
-| Decode of Tiny            | Instruction throughput                      | The 5.3 MB of weights fit in cache, so memory bandwidth is not the limit                                                              |
-| Decode of Small           | Probably memory                             | 49 MB of float32 weights exceed the cache                                                                                             |
-| Parallel training         | Mostly the CPU itself                       | The serial work per step is a few percent of a 2 s step, and efficiency falls as threads move onto hyper-threads and efficiency cores |
+| Workload                  | Limit                                       | Reasoning                                                                                                                               |
+| ------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Matrix products           | Instruction throughput in scalar JavaScript | About 2.4 GFLOP/s is far below what L2 bandwidth supports, so cache tiling would gain nothing yet                                       |
+| Dot-product (`nt`) kernel | Floating-point add latency                  | One accumulator serialises every add, and the kernel was the slowest at about 2.0 GFLOP/s                                               |
+| Decode of Tiny            | Instruction throughput                      | The 5.3 MB of weights fit in cache, so memory bandwidth is not the limit                                                                |
+| Decode of Tiny and Small  | Instruction throughput                      | Int8 weights, which cut memory traffic by 4x, were slower on Small, so memory bandwidth is not the limit on this machine                |
+| Parallel training         | Per-core slowdown when all cores are busy   | Synchronisation is 1.5 to 3% of a step; one worker needs 581 ms for a micro-batch and eight concurrent workers need about 1,470 ms each |
 
 ## What changed
 
