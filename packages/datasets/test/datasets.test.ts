@@ -148,7 +148,20 @@ test('an approved build writes token files and a manifest that agree', async () 
 
 test('the same inputs always produce identical token files', async () => {
 	const root = await workspace(sources)
-	await buildDataset({ inputs: [root], tokenizer, outputDirectory: join(root, 'one'), validationPercent: 30, approved: true })
-	await buildDataset({ inputs: [root], tokenizer, outputDirectory: join(root, 'two'), validationPercent: 30, approved: true })
-	for (const name of ['train.tokens', 'validation.tokens']) expect(new Uint8Array(await Bun.file(join(root, 'one', name)).arrayBuffer())).toEqual(new Uint8Array(await Bun.file(join(root, 'two', name)).arrayBuffer()))
+	const first = await workspace()
+	const second = await workspace()
+	await buildDataset({ inputs: [root], tokenizer, outputDirectory: first, validationPercent: 30, approved: true })
+	await buildDataset({ inputs: [root], tokenizer, outputDirectory: second, validationPercent: 30, approved: true })
+	for (const name of ['train.tokens', 'validation.tokens']) expect(new Uint8Array(await Bun.file(join(first, name)).arrayBuffer())).toEqual(new Uint8Array(await Bun.file(join(second, name)).arrayBuffer()))
+})
+
+test('a dataset never ingests its own output', async () => {
+	const root = await workspace(sources)
+	const output = join(root, 'out')
+	const options = { inputs: [root], tokenizer, outputDirectory: output, validationPercent: 0, approved: true }
+	await buildDataset(options)
+	const before = new Uint8Array(await Bun.file(join(output, 'train.tokens')).arrayBuffer())
+	const again = await buildDataset(options)
+	expect(new Uint8Array(await Bun.file(join(output, 'train.tokens')).arrayBuffer())).toEqual(before)
+	expect(again.manifest.files.some((file) => file.reason === 'output-directory')).toBe(true)
 })

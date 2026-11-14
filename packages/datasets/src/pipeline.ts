@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { collectTextFiles } from '@scantling/tokenizer'
 import type { Tokenizer } from '@scantling/tokenizer'
 import { isGeneratedPath, isSensitivePath, scanDocument } from './scan.ts'
@@ -77,6 +77,7 @@ export async function buildDataset(options: BuildOptions): Promise<DatasetReport
 	const seen = new Set<string>()
 	const trainLines = new Set<string>()
 	const pending: { path: string; ids: number[]; lines: string[] }[] = []
+	const outputRoot = resolve(options.outputDirectory) + sep
 	let bytes = 0
 	let trainTokens = 0
 	let validationTokens = 0
@@ -85,6 +86,10 @@ export async function buildDataset(options: BuildOptions): Promise<DatasetReport
 	const validation = options.approved ? new TokenWriter(join(options.outputDirectory, 'validation.tokens'), tokenizer.vocabSize) : undefined
 	try {
 		for await (const file of collectTextFiles(options.inputs, options.maxFileBytes)) {
+			if (resolve(file.path).startsWith(outputRoot)) {
+				files.push({ path: file.path, status: 'excluded', reason: 'output-directory' })
+				continue
+			}
 			if (isGeneratedPath(file.path)) {
 				files.push({ path: file.path, status: 'excluded', reason: 'generated' })
 				continue
