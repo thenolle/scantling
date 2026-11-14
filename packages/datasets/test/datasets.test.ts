@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path'
 import { Random } from '@scantling/tensor'
 import { findSourceSecrets } from '@scantling/telemetry'
 import { DEFAULT_SPECIAL_TOKENS, Tokenizer } from '@scantling/tokenizer'
+import { repeatOf } from '../src/pipeline.ts'
+import { isCodeLikePath, isDataList, isMinifiedText } from '../src/scan.ts'
 import { FileBatchSource, TokenFile, TokenWriter, buildDataset, fileEvaluationBatches, isGeneratedPath, isSensitivePath, lineHashes, overlapRatio, scanDocument, splitOf } from '../src/index.ts'
 
 const roots: string[] = []
@@ -164,4 +166,32 @@ test('a dataset never ingests its own output', async () => {
 	const again = await buildDataset(options)
 	expect(new Uint8Array(await Bun.file(join(output, 'train.tokens')).arrayBuffer())).toEqual(before)
 	expect(again.manifest.files.some((file) => file.reason === 'output-directory')).toBe(true)
+})
+
+test('only code and small configuration files are kept', () => {
+	expect(isCodeLikePath('a/b/index.ts', 100)).toBe(true)
+	expect(isCodeLikePath('a/b/types.d.ts', 100)).toBe(true)
+	expect(isCodeLikePath('a/README.md', 100)).toBe(true)
+	expect(isCodeLikePath('a/package.json', 2_000)).toBe(true)
+	expect(isCodeLikePath('a/Dockerfile', 100)).toBe(true)
+	expect(isCodeLikePath('a/pokedex.json', 900_000)).toBe(false)
+	expect(isCodeLikePath('a/logo.svg', 100)).toBe(false)
+	expect(isCodeLikePath('a/words.txt', 100)).toBe(false)
+})
+
+test('word lists and minified text are recognised', () => {
+	const list = Array.from({ length: 100 }, (_, index) => `    'word${index}',`).join('\n')
+	expect(isDataList(`export const WORDS = [\n${list}\n]`)).toBe(true)
+	expect(isDataList(Array.from({ length: 100 }, (_, index) => `const value${index} = compute(${index})`).join('\n'))).toBe(false)
+	expect(isDataList("'a',\n'b',")).toBe(false)
+	expect(isMinifiedText('a=1;'.repeat(2000))).toBe(true)
+	expect(isMinifiedText(Array.from({ length: 200 }, () => 'const a = 1').join('\n'))).toBe(false)
+})
+
+test('the repeat multiplier follows the matching path prefix', () => {
+	const weights = { 'F:/web': 3 }
+	expect(repeatOf('F:\\web\\app\\main.ts', weights)).toBe(3)
+	expect(repeatOf('F:\\web2\\main.ts', weights)).toBe(1)
+	expect(repeatOf('F:\\corpus\\x.ts', weights)).toBe(1)
+	expect(repeatOf('F:\\web\\a.ts', undefined)).toBe(1)
 })

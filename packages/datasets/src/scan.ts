@@ -9,8 +9,11 @@ const SENSITIVE_PATHS: readonly RegExp[] = [
 ]
 
 const GENERATED_PATHS: readonly RegExp[] = [/(^|[\\/])generated([\\/]|$)/i, /\.min\.(js|css)$/i, /\.generated\./i]
-
 const EMAIL = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g
+const KEPT_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.css', '.scss', '.html', '.md', '.mdx', '.sql', '.prisma', '.sh', '.ps1', '.yml', '.yaml', '.toml'])
+const KEPT_NAMES = new Set(['dockerfile', 'makefile'])
+const JSON_LIMIT = 20_000
+const LONE_STRING = /^\s*(['"`])[^'"`\\]{1,80}\1,?\s*$/
 
 /** True for files that usually hold credentials or keys. They are never read into a dataset. */
 export function isSensitivePath(path: string): boolean {
@@ -42,4 +45,27 @@ export function scanDocument(text: string): ScanResult {
 		return 'user@example.com'
 	})
 	return { secrets: findSourceSecrets(text), emails, text: redacted }
+}
+
+/** True for source, markup, documentation and small configuration files. Data files, images and lists are not kept. */
+export function isCodeLikePath(path: string, length: number): boolean {
+	const name = (path.split(/[\\/]/).pop() ?? '').toLowerCase()
+	const dot = name.lastIndexOf('.')
+	const extension = dot <= 0 ? '' : name.slice(dot)
+	if (extension === '.json') return length <= JSON_LIMIT
+	return KEPT_EXTENSIONS.has(extension) || KEPT_NAMES.has(name)
+}
+
+/** True for long files that are mostly one short quoted string per line: word lists and similar data. */
+export function isDataList(text: string): boolean {
+	const lines = text.split('\n').filter((line) => line.trim().length > 0)
+	if (lines.length < 60) return false
+	let strings = 0
+	for (const line of lines) if (LONE_STRING.test(line)) strings += 1
+	return strings / lines.length >= 0.6
+}
+
+/** True for text whose lines are so long that it is almost certainly minified or bundled. */
+export function isMinifiedText(text: string): boolean {
+	return text.length > 2000 && text.length / text.split('\n').length > 300
 }

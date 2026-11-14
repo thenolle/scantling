@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { collectTextFiles } from '@scantling/tokenizer'
 import type { Tokenizer } from '@scantling/tokenizer'
-import { isGeneratedPath, isSensitivePath, scanDocument } from './scan.ts'
+import { isCodeLikePath, isDataList, isGeneratedPath, isMinifiedText, isSensitivePath, scanDocument } from './scan.ts'
 import { TokenWriter } from './store.ts'
 
 export const MANIFEST_FORMAT = 'scantling-dataset'
@@ -13,6 +13,7 @@ export interface Disposition {
 	readonly reason?: string
 	readonly split?: 'train' | 'validation'
 	readonly tokens?: number
+	readonly repeat?: number
 }
 
 export interface DatasetManifest {
@@ -34,6 +35,8 @@ export interface BuildOptions {
 	/** Without approval nothing is written: the build only reports what it would do. */
 	readonly approved: boolean
 	readonly maxFileBytes?: number
+	/** Whole-number repeat counts for training documents under a path prefix. Validation is never repeated. */
+	readonly weights?: Readonly<Record<string, number>>
 }
 
 export interface DatasetReport {
@@ -58,6 +61,18 @@ export function overlapRatio(hashes: readonly string[], train: ReadonlySet<strin
 /** Assigns a path to a split from a hash of the path, so the assignment never changes between runs. */
 export function splitOf(path: string, validationPercent: number): 'train' | 'validation' {
 	return Number.parseInt(sha256(path.replace(/\\/g, '/')).slice(0, 8), 16) % 100 < validationPercent ? 'validation' : 'train'
+}
+
+/** How many times a training document is written: the largest multiplier whose path prefix matches, or 1. */
+export function repeatOf(path: string, weights: Readonly<Record<string, number>> | undefined): number {
+	if (weights === undefined) return 1
+	const normal = path.replace(/\\/g, '/').toLowerCase()
+	let repeat = 1
+	for (const [prefix, count] of Object.entries(weights)) {
+		const base = prefix.replace(/\\/g, '/').toLowerCase()
+		if (normal.startsWith(base.endsWith('/') ? base : `${base}/`)) repeat = Math.max(repeat, count)
+	}
+	return repeat
 }
 
 /**
@@ -98,6 +113,18 @@ export async function buildDataset(options: BuildOptions): Promise<DatasetReport
 				files.push({ path: file.path, status: 'excluded', reason: 'sensitive-path' })
 				continue
 			}
+			if (!isCodeLikePath(file.path, file.text.length)) {
+				files.push({ path: file.path, status: 'excluded', reason: 'not-code' })
+				continue
+			}
+			if (isMinifiedText(file.text)) {
+				files.push({ path: file.path, status: 'excluded', reason: 'minified' })
+				continue
+			}
+			if (isDataList(file.text)) {
+				files.push({ path: file.path, status: 'excluded', reason: 'data-list' })
+				continue
+			}
 			const scan = scanDocument(file.text)
 			if (scan.secrets.length > 0) {
 				files.push({ path: file.path, status: 'excluded', reason: `secret:${scan.secrets.join('+')}` })
@@ -112,10 +139,11 @@ export async function buildDataset(options: BuildOptions): Promise<DatasetReport
 			const ids = [fileId, ...tokenizer.encode(scan.text), endId]
 			bytes += encoder.encode(scan.text).length
 			if (splitOf(file.path, percent) === 'train') {
-				train?.append(ids)
-				trainTokens += ids.length
+				const repeat = repeatOf(file.path, options.weights)
+				for (let copy = 0; copy < repeat; copy += 1) train?.append(ids)
+				trainTokens += ids.length * repeat
 				for (const hash of lineHashes(scan.text)) trainLines.add(hash)
-				files.push({ path: file.path, status: 'included', split: 'train', tokens: ids.length })
+				files.push({ path: file.path, status: 'included', split: 'train', tokens: ids.length, repeat })
 			} else {
 				pending.push({ path: file.path, ids, lines: lineHashes(scan.text) })
 			}

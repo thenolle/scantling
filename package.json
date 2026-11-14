@@ -30,6 +30,7 @@
 		"generate": "bun packages/inference/src/cli.ts",
 		"profile": "bun packages/training/src/profile.ts",
 		"evaluate": "bun packages/runner/src/evaluate.ts",
+		"corpus": "bun packages/datasets/src/licensed.ts",
     "release": "bun tools/release.ts"
   },
   "devDependencies": {
