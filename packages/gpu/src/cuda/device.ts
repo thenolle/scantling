@@ -1,11 +1,20 @@
 import { checkMatmul } from '../device.ts'
 import type { ComputeDevice, DeviceBuffer, DeviceInfo, DeviceMemory, MatmulSpec } from '../device.ts'
 import { CudaApi } from './driver.ts'
-import { KERNEL_NAMES, moduleSource } from './ptx.ts'
+import { KERNEL_NAMES } from './ptx.ts'
 import type { KernelName } from './ptx.ts'
+import { type ProgramName, PROGRAMS, PROGRAM_NAMES } from './ops'
+import { type KernelArgument } from './driver'
+import { moduleSource } from './module'
 
 const MAX_GRID_Z = 65535
 const mib = (bytes: number): string => `${(bytes / 1_048_576).toFixed(0)} MiB`
+
+/** A region of a buffer, starting `offset` elements in. */
+export interface BufferSlice {
+	readonly buffer: DeviceBuffer
+	readonly offset: number
+}
 
 class CudaBuffer implements DeviceBuffer {
 	readonly device = 'cuda' as const
@@ -28,12 +37,12 @@ export class CudaDevice implements ComputeDevice {
 	readonly #api: CudaApi
 	readonly #handle: number
 	readonly #module: bigint
-	readonly #functions: ReadonlyMap<KernelName, bigint>
+	readonly #functions: ReadonlyMap<string, bigint>
 	readonly #live = new Map<bigint, number>()
 	#allocated = 0
 	#disposed = false
 
-	private constructor(api: CudaApi, handle: number, module: bigint, functions: ReadonlyMap<KernelName, bigint>, info: DeviceInfo) {
+	private constructor(api: CudaApi, handle: number, module: bigint, functions: ReadonlyMap<string, bigint>, info: DeviceInfo) {
 		this.#api = api
 		this.#handle = handle
 		this.#module = module
@@ -54,7 +63,8 @@ export class CudaDevice implements ComputeDevice {
 		try {
 			api.check(api.symbols.cuCtxSetCurrent(context[0]!), 'cuCtxSetCurrent')
 			const module = api.loadModule(moduleSource())
-			const functions = new Map<KernelName, bigint>(KERNEL_NAMES.map((name) => [name, api.getFunction(module, name)] as const))
+			const names: string[] = [...KERNEL_NAMES, ...PROGRAM_NAMES]
+			const functions = new Map<string, bigint>(names.map((name) => [name, api.getFunction(module, name)] as const))
 			const info: DeviceInfo = {
 				kind: 'cuda',
 				name: properties.name,
@@ -196,7 +206,7 @@ export class CudaDevice implements ComputeDevice {
 		if (this.#disposed) throw new Error('This device has been disposed')
 	}
 
-	#kernel(name: KernelName): bigint {
+	#kernel(name: string): bigint {
 		this.#alive()
 		const kernel = this.#functions.get(name)
 		if (kernel === undefined) throw new Error(`Kernel ${name} is not loaded`)
@@ -208,5 +218,31 @@ export class CudaDevice implements ComputeDevice {
 		if (!(buffer instanceof CudaBuffer) || buffer.owner !== this) throw new TypeError('This buffer belongs to a different device')
 		if (buffer.disposed) throw new Error('This buffer has been freed')
 		return buffer
+	}
+
+	/**
+	 * Launches a compiled neural-network program. Prefer the typed wrappers in `NeuralOps`, which also check
+	 * that every buffer is large enough for the sizes passed.
+	 */
+	runProgram(name: ProgramName, grid: readonly [number, number, number], block: number, buffers: Readonly<Record<string, DeviceBuffer | BufferSlice>>, ints: Readonly<Record<string, number>>, floats: Readonly<Record<string, number>>): void {
+		const program = PROGRAMS[name]
+		const args: KernelArgument[] = []
+		for (const bufferName of program.buffers) {
+			const given = buffers[bufferName]
+			if (given === undefined) throw new Error(`${name} needs a buffer named "${bufferName}"`)
+			const slice: BufferSlice = 'buffer' in given ? given : { buffer: given, offset: 0 }
+			args.push({ type: 'u64', value: this.#own(slice.buffer).pointer + BigInt(slice.offset * 4) })
+		}
+		for (const intName of program.ints) {
+			const value = ints[intName]
+			if (value === undefined) throw new Error(`${name} needs the integer "${intName}"`)
+			args.push({ type: 'u32', value })
+		}
+		for (const floatName of program.floats) {
+			const value = floats[floatName]
+			if (value === undefined) throw new Error(`${name} needs the float "${floatName}"`)
+			args.push({ type: 'f32', value })
+		}
+		this.#api.launch(this.#kernel(name), grid, [block, 1, 1], args)
 	}
 }

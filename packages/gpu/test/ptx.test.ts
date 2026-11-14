@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
-import { KERNEL_NAMES, elementwiseKernel, moduleSource, sgemmKernel } from '../src/cuda/ptx.ts'
+import { moduleSource } from '../src/cuda/module.ts'
+import { KERNEL_NAMES, elementwiseKernel, sgemmKernel } from '../src/cuda/ptx.ts'
 
 const kernels = [
 	['sgemm_nn', sgemmKernel('sgemm_nn', false, false), 15],

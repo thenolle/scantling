@@ -104,10 +104,25 @@ gpu('device tensors agree with the CPU matmul, including irregular broadcasts', 
 	device.dispose()
 })
 
-gpu('the self-test passes and misuse fails with clear errors', () => {
+gpu('the self-test passes', () => {
 	const device = CudaDevice.create()
+	const started = performance.now()
 	selfTest(device)
-	expect(() => device.alloc(2 ** 33)).toThrow('out of memory')
+	console.log(`self-test took ${(performance.now() - started).toFixed(0)} ms`)
+	device.dispose()
+})
+
+gpu('an allocation beyond free memory fails with a clear error', () => {
+	const device = CudaDevice.create()
+	const started = performance.now()
+	const beyond = Math.ceil((device.memory().freeBytes + 2 * 1024 ** 3) / 4)
+	expect(() => device.alloc(beyond)).toThrow('out of memory')
+	console.log(`the refused allocation took ${(performance.now() - started).toFixed(0)} ms`)
+	device.dispose()
+}, 30_000)
+
+gpu('bad matmul specs and foreign buffers are rejected', () => {
+	const device = CudaDevice.create()
 	const small = device.alloc(4)
 	const big = device.alloc(100)
 	expect(() => device.matmul(small, big, big, { m: 4, k: 4, n: 4, transposeA: false, transposeB: false, batch: 1, strideA: 0, strideB: 0, strideC: 16 })).toThrow(RangeError)

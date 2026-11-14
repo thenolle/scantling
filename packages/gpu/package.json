@@ -8,6 +8,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@scantling/tensor": "workspace:*"
+    "@scantling/tensor": "workspace:*",
+		"@scantling/autodiff": "workspace:*",
+		"@scantling/training": "workspace:*"
   }
 }
