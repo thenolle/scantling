@@ -14,6 +14,18 @@ export interface GpuTrainerOptions extends Omit<TrainerOptions, 'model' | 'accum
 	readonly accumulation?: number
 }
 
+/** Where the time of one GPU step went, in milliseconds. */
+export interface GpuStepTimings {
+	/** Copying weights up and clearing gradients. */
+	readonly uploadMs: number
+	/** Forward and backward on the device, waited for. */
+	readonly computeMs: number
+	/** Copying gradients back. */
+	readonly downloadMs: number
+	/** Clipping, the CPU optimizer update and bookkeeping. */
+	readonly optimizerMs: number
+}
+
 /**
  * Trains on the GPU: gradients come from `GpuModel`, then the shared `Trainer` clips them, skips non-finite steps,
  * applies the optimizer and advances the step counter. Weights, optimizer state and checkpoints stay on the CPU side,
@@ -23,6 +35,7 @@ export class GpuTrainer {
 	readonly trainer: Trainer
 	readonly gpu: GpuModel
 	readonly accumulation: number
+	#timings: GpuStepTimings | undefined
 
 	constructor(options: GpuTrainerOptions) {
 		this.accumulation = options.accumulation ?? 1
@@ -39,6 +52,10 @@ export class GpuTrainer {
 		return this.trainer.skippedSteps
 	}
 
+	get lastTimings(): GpuStepTimings | undefined {
+		return this.#timings
+	}
+
 	resume(step: number, skippedSteps: number): void {
 		this.trainer.resume(step, skippedSteps)
 	}
@@ -47,6 +64,7 @@ export class GpuTrainer {
 		const started = performance.now()
 		this.gpu.uploadWeights()
 		this.gpu.zeroGrads()
+		const uploaded = performance.now()
 		let loss = 0
 		let tokens = 0
 		for (let micro = 0; micro < this.accumulation; micro += 1) {
@@ -56,8 +74,13 @@ export class GpuTrainer {
 			this.gpu.backward(batch.batch)
 			tokens += batch.batch * batch.length
 		}
+		this.gpu.device.synchronize()
+		const computed = performance.now()
 		this.gpu.downloadGrads(1 / this.accumulation)
-		return this.trainer.applyAccumulated(loss, tokens, started)
+		const downloaded = performance.now()
+		const metrics = this.trainer.applyAccumulated(loss, tokens, started)
+		this.#timings = { uploadMs: uploaded - started, computeMs: computed - uploaded, downloadMs: downloaded - computed, optimizerMs: performance.now() - downloaded }
+		return metrics
 	}
 
 	/** Mean loss over `batches`, computed on the GPU with the current CPU weights. */

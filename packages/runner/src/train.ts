@@ -9,7 +9,7 @@ import { Tokenizer } from '@scantling/tokenizer'
 import { bitsPerByte, smokeChecks, tokenBytes, unigramLoss } from './evaluation.ts'
 import { GIB, MIB, ResourceMonitor, computeBudget, detectHardware, formatBytes } from '@scantling/hardware'
 import { AdamW, ParallelTrainer, estimateParallelMemory, warmupCosine } from '@scantling/training'
-import { CudaDevice, GpuTrainer, selectDevice } from '@scantling/gpu'
+import { CudaDevice, GpuTrainer, estimateGpuBytes, selectDevice } from '@scantling/gpu'
 
 const args = Bun.argv.slice(2)
 const option = (name: string): string | undefined => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
@@ -90,11 +90,10 @@ logger.info('Training plan', {
 	parameters: model.parameterCount(),
 	trainTokens: train.count,
 	validationTokens: validation.count,
-	workers,
+	...(gpuDevice === undefined ? { workers, memoryBudget: formatBytes(budget.trainingMemoryBytes) } : { microBatch: gpuMicroBatch, accumulation: gpuAccumulation, gpuEstimate: formatBytes(estimateGpuBytes(model.config, model.parameterCount(), gpuMicroBatch, length)) }),
 	tokensPerStep,
 	steps,
 	epochs: Number(((steps * tokensPerStep) / train.count).toFixed(2)),
-	memoryBudget: formatBytes(budget.trainingMemoryBytes),
 	uniformLoss: Number(Math.log(tokenizer.vocabSize).toFixed(4)),
 	unigramBaseline: Number(baseline.toFixed(4)),
 	device: gpuDevice === undefined ? 'cpu' : 'cuda', deviceNote,
@@ -142,7 +141,7 @@ const summary = await trainer.run({
 		rate = rate === 0 ? metrics.tokensPerSecond : rate * 0.9 + metrics.tokensPerSecond * 0.1
 		if (metrics.step % logEvery === 0) {
 			const eta = ((steps - metrics.step - 1) * tokensPerStep) / rate
-			logger.info(`step ${metrics.step + 1}/${steps}`, { loss: Number(metrics.loss.toFixed(4)), gradNorm: Number(metrics.gradNorm.toFixed(3)), lr: Number(metrics.learningRate.toExponential(2)), tokensPerSecond: Math.round(rate), etaMinutes: Number((eta / 60).toFixed(1)), skipped: metrics.skipped })
+			logger.info(`step ${metrics.step + 1}/${steps}`, { loss: Number(metrics.loss.toFixed(4)), gradNorm: Number(metrics.gradNorm.toFixed(3)), lr: Number(metrics.learningRate.toExponential(2)), tokensPerSecond: Math.round(rate), etaMinutes: Number((eta / 60).toFixed(1)), skipped: metrics.skipped, ...(trainer instanceof GpuTrainer && trainer.lastTimings !== undefined ? { gpuMs: Math.round(trainer.lastTimings.computeMs), optimizerMs: Math.round(trainer.lastTimings.optimizerMs), transferMs: Math.round(trainer.lastTimings.uploadMs + trainer.lastTimings.downloadMs) } : {}) })
 		}
 		if ((metrics.step + 1) % checkpointEvery === 0) checkpoint()
 	},
