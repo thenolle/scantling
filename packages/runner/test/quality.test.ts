@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { Tensor } from '@scantling/tensor'
-import { hasMismatchedBrackets, matchingPrefix, nextTokenAccuracy } from '../src/quality.ts'
+import { START_STATE, endsInLoop, hasMismatchedBrackets, matchingPrefix, nextTokenAccuracy, scanBrackets } from '../src/quality.ts'
 
 test('bracket checks accept balanced and cut-off code and reject crossings', () => {
 	expect(hasMismatchedBrackets('function f(a) { return [a, (1)] }')).toBe(false)
@@ -25,4 +25,20 @@ test('next-token accuracy ranks the true token among the logits', () => {
 	expect(result.top1).toBeCloseTo(2 / 3, 9)
 	expect(result.top5).toBeCloseTo(1, 9)
 	expect(result.tokens).toBe(3)
+})
+
+test('bracket state carries across the prompt boundary', () => {
+	const prompt = scanBrackets('call(a, [1, ', START_STATE, true)
+	expect(prompt.stack).toEqual(['(', '['])
+	expect(scanBrackets('2]) }', { ...prompt, mismatch: false }, true).mismatch).toBe(false)
+	expect(scanBrackets('2) }', { ...prompt, mismatch: false }, true).mismatch).toBe(true)
+	const inString = scanBrackets("const a = 'x(", START_STATE, true)
+	expect(inString.quote).toBe("'")
+	expect(scanBrackets("y)' + (", inString, true).mismatch).toBe(false)
+})
+
+test('loops are detected by period', () => {
+	expect(endsInLoop(Array.from({ length: 30 }, (_, index) => index))).toBe(false)
+	expect(endsInLoop([9, 8, ...Array.from({ length: 30 }, (_, index) => [1, 2, 3][index % 3]!)])).toBe(true)
+	expect(endsInLoop([1, 2, 3])).toBe(false)
 })

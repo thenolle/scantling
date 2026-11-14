@@ -37,35 +37,84 @@ export function nextTokenAccuracy(model: Pick<Transformer, 'config' | 'forward'>
 	return { top1: top1 / tokens, top5: top5 / tokens, tokens }
 }
 
+/** Where a bracket scan stands: open brackets, an open string or comment, and whether nesting has broken. */
+export interface BracketState {
+	readonly stack: readonly string[]
+	readonly quote: string | undefined
+	readonly comment: 'line' | 'block' | undefined
+	/** True once a closing bracket disagreed with the bracket it closed. */
+	readonly mismatch: boolean
+}
+
+export const START_STATE: BracketState = { stack: [], quote: undefined, comment: undefined, mismatch: false }
+
+const CLOSERS: Readonly<Record<string, string>> = { ')': '(', ']': '[', '}': '{' }
+
 /**
- * True when a closing bracket does not match the bracket it closes. Strings, template literals and comments are
- * skipped. The check is approximate: regular expression literals and JSX text can fool it. Unclosed brackets are
- * not a mismatch, so a cut-off completion is not penalised.
+ * Scans text for bracket nesting, skipping strings, template literals and comments, and returns the state so a
+ * scan can continue from where another stopped. With `tolerateUnderflow`, a closer with nothing open is not an
+ * error, which suits text that starts in the middle of a file. The check is approximate: regular expression
+ * literals and JSX text can fool it.
  */
-export function hasMismatchedBrackets(text: string): boolean {
-	const opens: Readonly<Record<string, string>> = { ')': '(', ']': '[', '}': '{' }
-	const stack: string[] = []
-	let quote: string | undefined
+export function scanBrackets(text: string, from: BracketState = START_STATE, tolerateUnderflow = false): BracketState {
+	const stack = [...from.stack]
+	let quote = from.quote
+	let comment = from.comment
+	let mismatch = from.mismatch
 	for (let index = 0; index < text.length; index += 1) {
 		const char = text[index]!
+		if (comment === 'line') {
+			if (char === '\n') comment = undefined
+			continue
+		}
+		if (comment === 'block') {
+			if (char === '*' && text[index + 1] === '/') {
+				comment = undefined
+				index += 1
+			}
+			continue
+		}
 		if (quote !== undefined) {
 			if (char === '\\') index += 1
 			else if (char === quote || (char === '\n' && quote !== '`')) quote = undefined
 			continue
 		}
 		if (char === '/' && text[index + 1] === '/') {
-			while (index < text.length && text[index] !== '\n') index += 1
+			comment = 'line'
+			index += 1
 		} else if (char === '/' && text[index + 1] === '*') {
-			const end = text.indexOf('*/', index + 2)
-			if (end === -1) return false
-			index = end + 1
+			comment = 'block'
+			index += 1
 		} else if (char === '"' || char === "'" || char === '`') {
 			quote = char
 		} else if (char === '(' || char === '[' || char === '{') {
 			stack.push(char)
-		} else if (opens[char] !== undefined && stack.pop() !== opens[char]) {
-			return true
+		} else if (CLOSERS[char] !== undefined) {
+			const top = stack.pop()
+			if (top === undefined ? !tolerateUnderflow : top !== CLOSERS[char]) mismatch = true
 		}
+	}
+	return { stack, quote, comment, mismatch }
+}
+
+/** True when a closing bracket does not match the bracket it closes. Unclosed brackets are not a mismatch. */
+export function hasMismatchedBrackets(text: string): boolean {
+	return scanBrackets(text).mismatch
+}
+
+/** True when the end of a sequence repeats with a period of at most `maxPeriod` tokens across `window` tokens. */
+export function endsInLoop(tokens: readonly number[], window = 24, maxPeriod = 8): boolean {
+	if (tokens.length < window) return false
+	const tail = tokens.slice(-window)
+	for (let period = 1; period <= maxPeriod; period += 1) {
+		let repeats = true
+		for (let index = period; index < tail.length; index += 1) {
+			if (tail[index] !== tail[index - period]) {
+				repeats = false
+				break
+			}
+		}
+		if (repeats) return true
 	}
 	return false
 }
@@ -89,10 +138,14 @@ export interface CompletionReport {
 	readonly meanMatchingPrefix: number
 	/** Share of prompts whose first eight generated tokens equal the real ones. */
 	readonly firstEightExact: number
-	/** Share of prompts whose prompt plus generated text has mismatched brackets. */
+	/** Share of prompts whose generated text breaks bracket nesting, counted from the state the prompt left. */
 	readonly generatedMismatch: number
-	/** The same share for the prompt plus the real continuation, as a baseline. */
+	/** The same share for the real continuation, as a baseline. */
 	readonly realMismatch: number
+	/** Share of generated sequences that end in a repeating loop. */
+	readonly generatedLoops: number
+	/** The same share for the real continuation, as a baseline. */
+	readonly realLoops: number
 	readonly samples: readonly { readonly prompt: string; readonly expected: string; readonly generated: string }[]
 }
 
@@ -115,6 +168,8 @@ export function evaluateCompletions(model: Transformer, tokenizer: Tokenizer, fi
 	let exact = 0
 	let generatedBad = 0
 	let realBad = 0
+	let generatedLooping = 0
+	let realLooping = 0
 	for (let prompt = 0; prompt < options.prompts; prompt += 1) {
 		const chunk = file.read(random.nextInt(file.count - total), total)
 		const promptIds = Array.from(chunk.subarray(0, options.promptTokens))
@@ -133,8 +188,11 @@ export function evaluateCompletions(model: Transformer, tokenizer: Tokenizer, fi
 		const promptText = tokenizer.decode(promptIds)
 		const generatedText = tokenizer.decode(generated)
 		const expectedText = tokenizer.decode(expected)
-		if (hasMismatchedBrackets(promptText + generatedText)) generatedBad += 1
-		if (hasMismatchedBrackets(promptText + expectedText)) realBad += 1
+		const afterPrompt = { ...scanBrackets(promptText, START_STATE, true), mismatch: false }
+		if (scanBrackets(generatedText, afterPrompt, true).mismatch) generatedBad += 1
+		if (scanBrackets(expectedText, afterPrompt, true).mismatch) realBad += 1
+		if (endsInLoop(generated)) generatedLooping += 1
+		if (endsInLoop(expected)) realLooping += 1
 		if (samples.length < 3) samples.push({ prompt: promptText.slice(-160), expected: expectedText, generated: generatedText })
 	}
 	return {
@@ -142,6 +200,8 @@ export function evaluateCompletions(model: Transformer, tokenizer: Tokenizer, fi
 		firstEightExact: exact / options.prompts,
 		generatedMismatch: generatedBad / options.prompts,
 		realMismatch: realBad / options.prompts,
+		generatedLoops: generatedLooping / options.prompts,
+		realLoops: realLooping / options.prompts,
 		samples
 	}
 }
