@@ -39,3 +39,18 @@ This prints tokens per second for the Tiny configuration with the single-threade
 ## Limits
 
 Each step copies the weights out and sums the slots on the main thread, which costs O(workers * parameters). The optimizer state is not sharded.
+
+## Measured scaling
+
+On the development machine (Intel Core i5-12450H, 12 logical cores), training the Tiny preset (1,315,968 parameters) with 2 sequences of 128 tokens per worker per step:
+
+| Workers            | Tokens/s | Speedup | Efficiency |
+| ------------------ | -------- | ------- | ---------- |
+| Sequential trainer | 236      | 1.00x   |            |
+| 1                  | 235      | 0.99x   | 99%        |
+| 2                  | 412      | 1.74x   | 87%        |
+| 4                  | 662      | 2.80x   | 70%        |
+| 8                  | 929      | 3.93x   | 49%        |
+| 12                 | 1,007    | 4.26x   | 36%        |
+
+Eight workers are the practical choice: twelve add 8% throughput but leave no thread free for the rest of the application. The sequential trainer reaches 76% of the matrix-only throughput ceiling and the parallel one 81%, so further speed must come from faster kernels rather than more threads.

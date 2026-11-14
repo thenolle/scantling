@@ -25,6 +25,7 @@ Scantling is a Bun workspace written in strict TypeScript. The model stack is bu
 | Dataset pipeline                            | Implemented |
 | Checkpoints and promotion gate              | Implemented |
 | Data-parallel training                      | Implemented |
+| Inference engine                            | Implemented |
 | Tokenizer and Transformer                   | Planned     |
 | Training and evaluation                     | Planned     |
 | Mathematics engine                          | Planned     |
