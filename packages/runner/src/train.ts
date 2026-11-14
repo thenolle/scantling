@@ -1,14 +1,14 @@
 import { CheckpointStore, applyWeights, checkpointId, weightsOf } from '@scantling/checkpoint'
 import type { CheckpointState } from '@scantling/checkpoint'
 import { FileBatchSource, TokenFile, fileEvaluationBatches } from '@scantling/datasets'
-import { computeBudget, detectHardware, formatBytes } from '@scantling/hardware'
 import { Transformer, presetConfig } from '@scantling/nn'
 import type { PresetName } from '@scantling/nn'
 import { createRuntimeLogger } from '@scantling/telemetry'
 import { Random } from '@scantling/tensor'
 import { Tokenizer } from '@scantling/tokenizer'
-import { AdamW, ParallelTrainer, warmupCosine } from '@scantling/training'
 import { bitsPerByte, smokeChecks, tokenBytes, unigramLoss } from './evaluation.ts'
+import { GIB, ResourceMonitor, computeBudget, detectHardware, formatBytes } from '@scantling/hardware'
+import { AdamW, ParallelTrainer, estimateParallelMemory, warmupCosine } from '@scantling/training'
 
 const args = Bun.argv.slice(2)
 const option = (name: string): string | undefined => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
@@ -34,7 +34,8 @@ const logEvery = value('--log-every', 10)
 
 const { logger } = createRuntimeLogger({ level: 'info', directory: 'data/logs', toFile: true, maxFileBytes: 10 * 1024 * 1024, maxFiles: 5 })
 const profile = await detectHardware({ storagePaths: [process.cwd()] })
-const budget = computeBudget(profile)
+const reserveGiB = value('--reserve-gib', 1)
+const budget = computeBudget(profile, { reserveBytes: reserveGiB * GIB })
 const workers = value('--workers', budget.workerThreads)
 
 const train = TokenFile.open(`${datasetDirectory}/train.tokens`)
@@ -49,6 +50,10 @@ const evalTargets = evalSet.flatMap((batch) => Array.from(batch.targets))
 const baseline = unigramLoss(train.read(0, Math.min(train.count, 20_000_000)), evalTargets, tokenizer.vocabSize)
 const evalBytes = tokenBytes(tokenizer, evalTargets)
 
+const memoryLimit = option('--max-memory-gib') === undefined ? budget.trainingMemoryBytes : value('--max-memory-gib', 0) * GIB
+const needed = estimateParallelMemory(model.parameterCount(), workers, rounds)
+if (needed > memoryLimit) throw new Error(`Not enough memory: ${formatBytes(profile.memory.availableBytes)} of ${formatBytes(profile.memory.totalBytes)} is free, minus a ${reserveGiB} GiB reserve leaves ${formatBytes(budget.trainingMemoryBytes)}, but ${workers} workers with ${rounds} micro-batches each need at least ${formatBytes(needed)} plus activations. Close other programs, lower --workers or --rounds, or pass --max-memory-gib N to override.`)
+
 const trainer = new ParallelTrainer({
 	model,
 	optimizer,
@@ -56,7 +61,7 @@ const trainer = new ParallelTrainer({
 	workers,
 	rounds,
 	maxGradNorm: 1,
-	maxMemoryBytes: budget.trainingMemoryBytes
+	maxMemoryBytes: memoryLimit
 })
 
 const store = new CheckpointStore(`data/checkpoints/${name}`)
@@ -115,6 +120,8 @@ process.on('SIGINT', () => {
 const started = performance.now()
 let rate = 0
 const remaining = Math.max(0, steps - trainer.step)
+const monitor = new ResourceMonitor(500)
+monitor.start()
 const summary = await trainer.run({
 	steps: remaining,
 	source,
@@ -132,6 +139,7 @@ const summary = await trainer.run({
 	onEval: (step, result) =>
 		logger.info(`validation @${step}`, { loss: Number(result.loss.toFixed(4)), perplexity: Number(result.perplexity.toFixed(2)), bitsPerByte: Number(bitsPerByte(result.loss, evalTargets.length, evalBytes).toFixed(3)), unigramBaseline: Number(baseline.toFixed(4)) })
 })
+const usage = monitor.stop()
 checkpoint()
 
 const seconds = (performance.now() - started) / 1000
@@ -140,6 +148,7 @@ logger.info(summary.stopped ? 'Stopped early' : 'Finished', {
 	tokensSeen: trainer.step * tokensPerStep,
 	epochs: Number(((trainer.step * tokensPerStep) / train.count).toFixed(2)),
 	minutes: Number((seconds / 60).toFixed(1)),
+	peakMemory: formatBytes(usage.peakRssBytes),
 	finalValidationLoss: Number(lastEval.loss.toFixed(4)),
 	perplexity: Number(lastEval.perplexity.toFixed(2)),
 	bitsPerByte: Number(bitsPerByte(lastEval.loss, evalTargets.length, evalBytes).toFixed(3)),

@@ -1,6 +1,6 @@
 import { backward, profiler, zeroGrad } from '@scantling/autodiff'
 import { presetConfig, Transformer } from '@scantling/nn'
-import { Random } from '@scantling/tensor'
+import { Random, setSimdEnabled } from '@scantling/tensor'
 
 const batch = 2
 const length = 128
@@ -11,10 +11,12 @@ const inputs = Int32Array.from({ length: batch * length }, () => random.nextInt(
 const targets = Int32Array.from({ length: batch * length }, () => random.nextInt(4096))
 const variables = model.parameters()
 const step = (): void => {
+	if (profiler.enabled) profiler.mark = performance.now()
 	zeroGrad(variables)
 	backward(model.loss(inputs, targets, batch, length))
 }
 
+setSimdEnabled(process.env['SCANTLING_SIMD'] !== '0')
 for (let index = 0; index < 3; index += 1) step()
 profiler.start()
 const started = performance.now()
