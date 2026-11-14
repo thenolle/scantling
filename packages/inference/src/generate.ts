@@ -1,5 +1,7 @@
 import type { Transformer } from '@scantling/nn'
 import { Random } from '@scantling/tensor'
+import { FastDecoder, TensorEngine } from './fast.ts'
+import type { Engine } from './fast.ts'
 import { sampleToken } from './sampler.ts'
 import type { Candidate, SamplingOptions } from './sampler.ts'
 import { InferenceSession } from './session.ts'
@@ -10,6 +12,9 @@ export interface TokenText {
 	push(id: number): string
 	flush(): string
 }
+
+/** `tensor` is the general path; `float32` and `int8` use the allocation-free decoder. */
+export type EngineKind = 'tensor' | 'float32' | 'int8'
 
 export interface GenerateOptions {
 	readonly maxNewTokens: number
@@ -24,6 +29,8 @@ export interface GenerateOptions {
 	readonly contextPolicy?: 'slide' | 'stop'
 	/** Candidates to report per token. Defaults to 0. */
 	readonly trace?: number
+	/** Which decoding engine to use. Defaults to `tensor`. */
+	readonly engine?: EngineKind
 }
 
 export type FinishReason = 'length' | 'stop-token' | 'stop-sequence' | 'cancelled' | 'context'
@@ -31,6 +38,10 @@ export type FinishReason = 'length' | 'stop-token' | 'stop-sequence' | 'cancelle
 export type GenerationEvent =
 	| { readonly type: 'token'; readonly token: number; readonly text: string; readonly probability: number; readonly candidates: readonly Candidate[]; readonly position: number }
 	| { readonly type: 'done'; readonly reason: FinishReason; readonly tokens: number; readonly tail: string }
+
+function createEngine(model: Transformer, kind: EngineKind): Engine {
+	return kind === 'tensor' ? new TensorEngine(new InferenceSession(model)) : new FastDecoder(model, kind)
+}
 
 /**
  * Generates tokens for `prompt`, yielding each as it is produced. A prompt longer than the window is cut to
@@ -40,18 +51,13 @@ export async function* generate(model: Transformer, prompt: readonly number[], o
 	if (prompt.length === 0) throw new RangeError('The prompt must contain at least one token')
 	const { maxSeqLen } = model.config
 	if (maxSeqLen < 2) throw new RangeError('The context window must hold at least two tokens')
-	const session = new InferenceSession(model)
+	const engine = createEngine(model, options.engine ?? 'tensor')
 	const random = new Random(options.seed ?? 1)
 	const matcher = options.stopSequences !== undefined && options.stopSequences.length > 0 ? new StopMatcher(options.stopSequences) : undefined
 	const history = [...prompt]
-	let logits = session.feed(prompt.slice(-(maxSeqLen - 1))).data
+	let logits = engine.feed(prompt.slice(-(maxSeqLen - 1)))
 	let generated = 0
-	const finish = (reason: FinishReason, hold: boolean): GenerationEvent => ({
-		type: 'done',
-		reason,
-		tokens: generated,
-		tail: hold ? (matcher?.flush() ?? '') + (options.text?.flush() ?? '') : ''
-	})
+	const finish = (reason: FinishReason, hold: boolean): GenerationEvent => ({ type: 'done', reason, tokens: generated, tail: hold ? (matcher?.flush() ?? '') + (options.text?.flush() ?? '') : '' })
 	while (generated < options.maxNewTokens) {
 		if (options.signal?.aborted === true) {
 			yield finish('cancelled', true)
@@ -72,15 +78,15 @@ export async function* generate(model: Transformer, prompt: readonly number[], o
 			return
 		}
 		if (generated === options.maxNewTokens) break
-		if (session.length + 1 > maxSeqLen) {
+		if (engine.length + 1 > maxSeqLen) {
 			if ((options.contextPolicy ?? 'slide') === 'stop') {
 				yield finish('context', true)
 				return
 			}
-			session.reset()
-			logits = session.feed(history.slice(-Math.floor(maxSeqLen / 2))).data
+			engine.reset()
+			logits = engine.feed(history.slice(-Math.floor(maxSeqLen / 2)))
 		} else {
-			logits = session.feed([sampled.token]).data
+			logits = engine.feed([sampled.token])
 		}
 		await new Promise<void>((resolve) => setTimeout(resolve, 0))
 	}

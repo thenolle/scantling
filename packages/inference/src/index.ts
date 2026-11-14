@@ -1,4 +1,7 @@
+export * from './fast.ts'
 export * from './generate.ts'
+export * from './projection.ts'
+export * from './quantize.ts'
 export * from './sampler.ts'
 export * from './session.ts'
 export * from './stop.ts'

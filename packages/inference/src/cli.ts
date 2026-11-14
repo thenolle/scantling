@@ -29,6 +29,7 @@ const decoder = new StreamDecoder(tokenizer, { skipSpecial: true })
 const started = performance.now()
 let tokens = 0
 for await (const event of generate(model, prompt, {
+	engine: (option('--engine') ?? 'float32') as 'tensor' | 'float32' | 'int8',
 	maxNewTokens: number('--max') ?? 100,
 	seed: number('--seed') ?? 1,
 	sampling: {
