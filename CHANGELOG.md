@@ -9,6 +9,8 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Client-rendered documentation site built from the Markdown files in `docs/`.
 - Automatic publishing of the site to the `website` branch.
 - Hardware detection and resource budgeting for memory, workers and disk, with a CLI report.
+- Validated layered configuration with environment overrides and a local-only server default.
+- Structured logging with secret redaction, file rotation and an in-memory buffer.
 
 ### Fixed
 
