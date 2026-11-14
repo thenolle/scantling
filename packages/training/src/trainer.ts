@@ -48,6 +48,8 @@ export interface RunOptions {
 	readonly onEval?: (step: number, result: EvalResult) => void
 	/** Aborting stops the run cleanly after the current step. */
 	readonly signal?: AbortSignal
+	/** Replaces the default single-threaded step, for example with a parallel one. */
+	readonly stepper?: (source: BatchSource) => StepMetrics | Promise<StepMetrics>
 }
 
 export interface RunSummary {
@@ -98,8 +100,7 @@ export class Trainer {
 
 	trainStep(source: BatchSource): StepMetrics {
 		const started = performance.now()
-		const variables = this.#params.map((entry) => entry.variable)
-		zeroGrad(variables)
+		zeroGrad(this.#variables())
 		const seed = Tensor.scalar(1 / this.#accumulation)
 		let loss = 0
 		let tokens = 0
@@ -110,6 +111,16 @@ export class Trainer {
 			tokens += batch.batch * batch.length
 			backward(value, seed)
 		}
+		return this.applyAccumulated(loss, tokens, started)
+	}
+
+	/**
+	 * Finishes a step whose averaged gradients are already stored on the parameters: clips the global
+	 * norm, skips the update when the loss or gradient is not finite, otherwise applies the optimizer with
+	 * the scheduled learning rate, then clears the gradients and advances the step counter.
+	 */
+	applyAccumulated(loss: number, tokens: number, started: number): StepMetrics {
+		const variables = this.#variables()
 		const gradNorm = this.#maxGradNorm === undefined ? globalGradNorm(variables) : clipGradNorm(variables, this.#maxGradNorm)
 		const learningRate = this.#schedule(this.#step)
 		const skipped = !Number.isFinite(loss) || !Number.isFinite(gradNorm)
@@ -138,13 +149,14 @@ export class Trainer {
 	async run(options: RunOptions): Promise<RunSummary> {
 		const history: StepMetrics[] = []
 		const evaluations: { step: number; result: EvalResult }[] = []
+		const stepper = options.stepper ?? ((source: BatchSource): StepMetrics => this.trainStep(source))
 		let stopped = false
 		for (let index = 0; index < options.steps; index += 1) {
 			if (options.signal?.aborted === true) {
 				stopped = true
 				break
 			}
-			const metrics = this.trainStep(options.source)
+			const metrics = await stepper(options.source)
 			history.push(metrics)
 			options.onStep?.(metrics)
 			if (options.evalEvery !== undefined && options.evalBatches !== undefined && this.#step % options.evalEvery === 0) {
@@ -155,5 +167,9 @@ export class Trainer {
 			await new Promise<void>((resolve) => setTimeout(resolve, 0))
 		}
 		return { history, evaluations, stopped }
+	}
+
+	#variables(): Variable[] {
+		return this.#params.map((entry) => entry.variable)
 	}
 }

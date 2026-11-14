@@ -21,6 +21,7 @@
     "start": "bun run --filter @scantling/web start",
     "train": "bun packages/training/src/cli.ts",
     "train:overfit": "bun packages/training/src/overfit.ts",
+    "train:scaling": "bun packages/training/src/scaling.ts",
     "bench": "bun tools/bench/src/cli.ts",
 		"tokenizer": "bun packages/tokenizer/src/cli.ts",
     "dataset": "bun packages/datasets/src/cli.ts",

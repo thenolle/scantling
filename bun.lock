@@ -70,6 +70,7 @@
         "@scantling/autodiff": "workspace:*",
         "@scantling/nn": "workspace:*",
         "@scantling/tensor": "workspace:*",
+        "@scantling/workers": "workspace:*",
       },
     },
     "packages/workers": {
