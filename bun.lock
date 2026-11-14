@@ -9,6 +9,10 @@
         "typescript": "^7.0.2",
       },
     },
+    "packages/hardware": {
+      "name": "@scantling/hardware",
+      "version": "0.1.0",
+    },
     "website": {
       "name": "@scantling/website",
       "version": "0.1.0",
@@ -22,6 +26,8 @@
     "@gambrel/bun": ["@gambrel/bun@0.2.3", "", { "dependencies": { "@gambrel/core": "^0.2.3" } }, "sha512-TjSrMgxqVt9tGXtG3bwO7cmAoE5q/cBz4HaSkmzcK2nHKI0aFxJ6pDUkXjIqcowG7d932kP7xdnuANv+Je4v2w=="],
 
     "@gambrel/core": ["@gambrel/core@0.2.3", "", {}, "sha512-Ak1Rqs1XUSWHesogCA+x8+ectj7qCgRYgkujcJ1XEJUGHStSDOpsobBmFShXWljsS0SdtV+YYqtkdFGTf0PBTQ=="],
+
+    "@scantling/hardware": ["@scantling/hardware@workspace:packages/hardware"],
 
     "@scantling/website": ["@scantling/website@workspace:website"],
 
