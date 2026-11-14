@@ -31,6 +31,8 @@
 		"profile": "bun packages/training/src/profile.ts",
 		"evaluate": "bun packages/runner/src/evaluate.ts",
 		"corpus": "bun packages/datasets/src/licensed.ts",
+		"gpu": "bun packages/gpu/src/cli.ts",
+		"benchmark:gpu": "bun packages/gpu/src/bench.ts",
     "release": "bun tools/release.ts"
   },
   "devDependencies": {

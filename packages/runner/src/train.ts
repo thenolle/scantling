@@ -9,13 +9,14 @@ import { Tokenizer } from '@scantling/tokenizer'
 import { bitsPerByte, smokeChecks, tokenBytes, unigramLoss } from './evaluation.ts'
 import { GIB, MIB, ResourceMonitor, computeBudget, detectHardware, formatBytes } from '@scantling/hardware'
 import { AdamW, ParallelTrainer, estimateParallelMemory, warmupCosine } from '@scantling/training'
+import { selectDevice } from '@scantling/gpu'
 
 const args = Bun.argv.slice(2)
 const option = (name: string): string | undefined => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
 const value = (name: string, fallback: number): number => Number(option(name) ?? fallback)
 
 if (args.includes('--help')) {
-	console.log('bun run train -- [--dataset dir] [--tokenizer file] [--preset micro|tiny|small] [--steps N] [--length 128] [--micro-batch 2]\n  [--rounds 1] [--workers N] [--peak-lr 0.002] [--eval-every 100] [--checkpoint-every 250] [--log-every 10] [--name run] [--seed 1] [--resume]')
+	console.log('bun run train -- [--dataset dir] [--tokenizer file] [--preset micro|tiny|small] [--steps N] [--length 128] [--micro-batch 2]\n  [--rounds 1] [--workers N] [--peak-lr 0.002] [--eval-every 100] [--checkpoint-every 250] [--log-every 10] [--name run] [--seed 1] [--resume] [--device cpu|gpu|auto]')
 	process.exit(0)
 }
 
@@ -31,6 +32,15 @@ const name = option('--name') ?? `${preset}-run`
 const evalEvery = value('--eval-every', 100)
 const checkpointEvery = value('--checkpoint-every', 250)
 const logEvery = value('--log-every', 10)
+const deviceRequest = option('--device') ?? 'cpu'
+if (deviceRequest !== 'cpu' && deviceRequest !== 'gpu' && deviceRequest !== 'auto') throw new Error(`--device must be cpu, gpu or auto, received "${deviceRequest}"`)
+if (deviceRequest === 'gpu') throw new Error('Training on the GPU is not implemented yet. The CUDA backend currently provides device management and matrix multiplication. Use --device cpu, or --device auto to see what is available.')
+let deviceNote = 'training runs on the CPU'
+if (deviceRequest === 'auto') {
+	const selection = selectDevice('auto')
+	deviceNote = selection.device.info.kind === 'cuda' ? `${selection.device.info.name} is available but training runs on the CPU until the GPU training step lands` : `no usable GPU (${selection.fallbackReason ?? 'unknown reason'}), training runs on the CPU`
+	selection.device.dispose()
+}
 
 const { logger } = createRuntimeLogger({ level: 'info', directory: 'data/logs', toFile: true, maxFileBytes: 10 * 1024 * 1024, maxFiles: 5 })
 const profile = await detectHardware({ storagePaths: [process.cwd()] })
@@ -87,7 +97,8 @@ logger.info('Training plan', {
 	epochs: Number(((steps * tokensPerStep) / train.count).toFixed(2)),
 	memoryBudget: formatBytes(budget.trainingMemoryBytes),
 	uniformLoss: Number(Math.log(tokenizer.vocabSize).toFixed(4)),
-	unigramBaseline: Number(baseline.toFixed(4))
+	unigramBaseline: Number(baseline.toFixed(4)),
+	device: 'cpu', deviceNote,
 })
 
 let lastEval = trainer.evaluate(evalSet)

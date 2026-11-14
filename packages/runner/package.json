@@ -17,6 +17,7 @@
     "@scantling/tokenizer": "workspace:*",
     "@scantling/training": "workspace:*",
 		"@scantling/autodiff": "workspace:*",
-    "@scantling/inference": "workspace:*"
+    "@scantling/inference": "workspace:*",
+		"@scantling/gpu": "workspace:*"
   }
 }

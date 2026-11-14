@@ -1,0 +1,13 @@
+{
+  "name": "@scantling/gpu",
+  "version": "0.1.0",
+  "license": "PolyForm-Strict-1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@scantling/tensor": "workspace:*"
+  }
+}

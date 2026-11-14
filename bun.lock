@@ -39,6 +39,13 @@
         "@scantling/training": "workspace:*",
       },
     },
+    "packages/gpu": {
+      "name": "@scantling/gpu",
+      "version": "0.1.0",
+      "dependencies": {
+        "@scantling/tensor": "workspace:*",
+      },
+    },
     "packages/hardware": {
       "name": "@scantling/hardware",
       "version": "0.1.0",
@@ -70,6 +77,7 @@
         "@scantling/autodiff": "workspace:*",
         "@scantling/checkpoint": "workspace:*",
         "@scantling/datasets": "workspace:*",
+        "@scantling/gpu": "workspace:*",
         "@scantling/hardware": "workspace:*",
         "@scantling/inference": "workspace:*",
         "@scantling/nn": "workspace:*",
@@ -141,6 +149,8 @@
     "@scantling/config": ["@scantling/config@workspace:packages/config"],
 
     "@scantling/datasets": ["@scantling/datasets@workspace:packages/datasets"],
+
+    "@scantling/gpu": ["@scantling/gpu@workspace:packages/gpu"],
 
     "@scantling/hardware": ["@scantling/hardware@workspace:packages/hardware"],
 

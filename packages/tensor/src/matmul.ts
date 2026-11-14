@@ -44,10 +44,16 @@ function batchOffsets(batch: Shape, own: Shape, matrixSize: number): number[] {
 	return offsets
 }
 
+/** Anything with a shape: a CPU tensor, or a tensor that lives on a device. */
+export interface Shaped {
+	readonly shape: readonly number[]
+	readonly rank: number
+}
+
 /**
  * Validates the operands and describes the product. Throws `RangeError` on a shape mismatch.
  */
-export function planMatmul(a: Tensor, b: Tensor, options: MatmulOptions = {}): MatmulPlan {
+export function planMatmul(a: Shaped, b: Shaped, options: MatmulOptions = {}): MatmulPlan {
 	if (a.rank < 2 || b.rank < 2) throw new RangeError('matmul needs tensors of rank 2 or more; reshape vectors first')
 	const transposeA = options.transposeA === true
 	const transposeB = options.transposeB === true
