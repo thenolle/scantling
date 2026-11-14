@@ -25,6 +25,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Atomic, checksummed checkpoints with exact resume, and a promotion gate that requires evaluation and regression results and keeps the previous stable checkpoint recoverable.
 - Data-parallel training across worker threads, reproducible for a given worker count and equivalent to gradient accumulation.
 - KV-cached inference with seeded sampling, stop handling, cancellation and context sliding.
+- Training runner that builds the model from a dataset, trains in parallel, evaluates against a unigram baseline, checkpoints and applies the promotion gate.
 
 ### Fixed
 
