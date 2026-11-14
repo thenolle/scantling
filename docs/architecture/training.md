@@ -43,4 +43,19 @@ lr = min + (peak - min) * 0.5 * (1 + cos(pi * progress))
 bun run train:overfit
 ```
 
-This trains a small model from random weights on a repeating 16-token sequence. A model that has learned nothing scores `ln(vocabulary)`; learning anything drives the loss well below that. The measured run is recorded below once it has been executed.
+This trains a small model from random weights on a repeating 16-token sequence. A model that has learned nothing scores `ln(vocabulary)`; learning anything drives the loss well below that.
+
+### Measured run
+
+On the development machine (Intel Core i5-12450H, Bun 1.4.4, Windows 11, one thread), a 26,272-parameter model with a vocabulary of 32 was trained from random initialisation (seed 1) for 200 steps on a repeating 16-token sequence, with AdamW, a peak learning rate of 5e-3 and gradient clipping at 1.0.
+
+| Measure                           | Value                                                        |
+| --------------------------------- | ------------------------------------------------------------ |
+| Loss at step 0                    | 3.4601 (a model that learns nothing scores `ln(32)` = 3.466) |
+| Loss at step 200                  | 0.0020                                                       |
+| Evaluation perplexity at step 200 | 1.00                                                         |
+| Skipped steps                     | 0                                                            |
+| Throughput                        | about 9,000 tokens/s after warm-up                           |
+| Wall time                         | 3.3 s                                                        |
+
+This shows that the whole training stack learns. It does not show generalisation, because the evaluation data is the training data.
