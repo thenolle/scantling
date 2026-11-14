@@ -9,8 +9,16 @@
         "typescript": "^7.0.2",
       },
     },
+    "packages/config": {
+      "name": "@scantling/config",
+      "version": "0.1.0",
+    },
     "packages/hardware": {
       "name": "@scantling/hardware",
+      "version": "0.1.0",
+    },
+    "packages/telemetry": {
+      "name": "@scantling/telemetry",
       "version": "0.1.0",
     },
     "website": {
@@ -27,7 +35,11 @@
 
     "@gambrel/core": ["@gambrel/core@0.2.3", "", {}, "sha512-Ak1Rqs1XUSWHesogCA+x8+ectj7qCgRYgkujcJ1XEJUGHStSDOpsobBmFShXWljsS0SdtV+YYqtkdFGTf0PBTQ=="],
 
+    "@scantling/config": ["@scantling/config@workspace:packages/config"],
+
     "@scantling/hardware": ["@scantling/hardware@workspace:packages/hardware"],
+
+    "@scantling/telemetry": ["@scantling/telemetry@workspace:packages/telemetry"],
 
     "@scantling/website": ["@scantling/website@workspace:website"],
 

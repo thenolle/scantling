@@ -13,6 +13,7 @@
     "hooks": "git config core.hooksPath .githooks",
     "lint:commits": "bun tools/lint-commit.ts --range origin/master..HEAD",
     "hardware": "bun packages/hardware/src/cli.ts",
+    "config": "bun packages/config/src/cli.ts",
     "docs": "bun run --filter @scantling/website dev",
     "docs:build": "bun run --filter @scantling/website build",
     "dev": "bun run --filter @scantling/web dev",
