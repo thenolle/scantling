@@ -57,3 +57,19 @@ bun run evaluate -- --checkpoint data/checkpoints/tiny-web
 ```
 
 The report gives the validation loss and bits per byte against the unigram baseline, how often the true next token is the model's first or top-five choice, and a greedy completion test: from the first 48 tokens of held-out code, how many of the next 64 tokens the model reproduces and how often its output has mismatched brackets compared with the real code. Three samples are printed so you can read what the model writes.
+
+## Scaling the data
+
+The collector keeps code, markup, documentation and small configuration files; data files, images, minified text and word lists are excluded and reported. To add third-party code, stage permissively licensed packages from your own `node_modules` folders:
+
+```bash
+bun run corpus -- --from F:/web --to F:/corpus/licensed --max-mb 200
+```
+
+Only MIT, ISC, BSD-2/3, Apache-2.0, 0BSD, Unlicense, CC0 and BlueOak packages are copied, with their licence files, and `licenses.json` records what was staged. Build a dataset from both and weight your own code so it is not drowned out:
+
+```bash
+bun run dataset -- build --input F:/web --input F:/corpus/licensed --weight F:/web=3 --out data/datasets/mix
+```
+
+Weights repeat training documents only; validation is never repeated. Keep a validation set built from your own code alone for evaluation, because the mixed set mostly measures other people's code.
