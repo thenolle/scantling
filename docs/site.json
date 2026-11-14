@@ -1,0 +1,6 @@
+{
+  "title": "Scantling",
+  "description": "A local-first coding assistant built on its own language model.",
+  "repo": "https://github.com/thenolle/scantling",
+  "sectionOrder": ["Overview", "Guide", "Architecture", "Project"]
+}

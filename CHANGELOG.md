@@ -4,6 +4,15 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Added
+
+- Client-rendered documentation site built from the Markdown files in `docs/`.
+- Automatic publishing of the site to the `website` branch.
+
+### Fixed
+
+- Dependency audit no longer flags string literals that contain the word import.
+
 ## [0.1.0] - 2026-11-14
 
 ### Added
