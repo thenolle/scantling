@@ -17,6 +17,8 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Reverse-mode automatic differentiation with broadcasting-aware gradients, gradient clipping and a finite-difference gradient checker.
 - Differentiable activations, softmax, cross-entropy, embeddings, slicing, concatenation, masking, dropout, RMS normalisation and rotary embeddings.
 - Worker-parallel matrix products on shared memory and a benchmark suite that records the machine profile.
+- Byte-level BPE tokenizer with a code-aware pre-tokenizer, deterministic training, streaming decode and validated serialisation.
+- Measured benchmark results for matrix products on the development machine.
 
 ### Fixed
 
