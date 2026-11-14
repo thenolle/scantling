@@ -1,0 +1,26 @@
+{
+  "allowedDevDependencies": ["typescript", "@types/bun"],
+  "allowedRuntimePatterns": ["@gambrel/*"],
+  "workspaceScopes": ["@scantling/"],
+  "forbiddenModelExtensions": [
+    ".safetensors", ".gguf", ".ggml", ".onnx", ".pt", ".pth",
+    ".h5", ".hdf5", ".tflite", ".mlmodel", ".keras"
+  ],
+  "forbiddenHosts": [
+    "api.openai.com",
+    "api.anthropic.com",
+    "generativelanguage.googleapis.com",
+    "api.mistral.ai",
+    "api.cohere.com",
+    "api.groq.com",
+    "api.together.xyz",
+    "api.deepseek.com",
+    "api.x.ai",
+    "api.replicate.com",
+    "openrouter.ai",
+    "huggingface.co"
+  ],
+  "sourceRoots": ["packages", "apps", "tools", "website/src", "website/scripts"],
+  "sourceExtensions": [".ts", ".tsx", ".mts", ".js", ".mjs"],
+  "ignoredDirs": ["node_modules", ".git", "dist", "vendor", ".cache"]
+}
