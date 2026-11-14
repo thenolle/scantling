@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<title>Scantling documentation</title>
+	<link rel="icon" href="favicon.svg" type="image/svg+xml">
+	<meta name="description" content="Documentation for Scantling, a local-first coding assistant built on its own language model.">
+	<meta name="color-scheme" content="dark light">
+
+	<script>try { var t = localStorage.getItem('scantling-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t } catch (e) { }</script>
+
+	<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+	<a class="skip" href="#content">Skip to content</a>
+	<header class="top">
+		<button id="menu" type="button" class="icon-button" aria-label="Toggle navigation" aria-expanded="false">Menu</button>
+		<a class="brand" href="#/"><span id="brand-name">Scantling</span></a>
+		<span id="version" class="badge"></span>
+		<div class="search">
+			<input id="search" type="search" placeholder="Search documentation (/)" autocomplete="off" aria-label="Search documentation">
+			<div id="results" role="listbox" hidden></div>
+		</div>
+		<a id="repo" class="link" href="https://github.com/thenolle/scantling" target="_blank" rel="noopener noreferrer">GitHub</a>
+		<button id="theme" type="button" class="icon-button" aria-label="Switch theme">Light</button>
+	</header>
+	<div class="layout">
+		<nav id="sidebar" aria-label="Documentation"></nav>
+		<main id="content" tabindex="-1"><div class="doc"><p>Loading documentation…</p></div></main>
+		<aside id="toc" aria-label="On this page"></aside>
+	</div>
+	<div id="overlay" hidden></div>
+	<noscript><p style="padding:1rem">This documentation needs JavaScript. The Markdown sources are in the <code>docs</code> folder of the repository.</p></noscript>
+	<script type="module" src="app.js"></script>
+</body>
+
+</html>
