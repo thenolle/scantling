@@ -23,6 +23,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - AdamW and SGD optimizers, warmup-cosine scheduling, gradient accumulation with clipping and skip-on-non-finite, and a cancellable trainer.
 - Dataset pipeline that excludes sensitive files and credentials, deduplicates, splits deterministically, checks contamination and stores packed tokens in a streamable binary format.
 - Atomic, checksummed checkpoints with exact resume, and a promotion gate that requires evaluation and regression results and keeps the previous stable checkpoint recoverable.
+- Data-parallel training across worker threads, reproducible for a given worker count and equivalent to gradient accumulation.
 
 ### Fixed
 
