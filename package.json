@@ -24,6 +24,7 @@
     "bench": "bun tools/bench/src/cli.ts",
 		"tokenizer": "bun packages/tokenizer/src/cli.ts",
     "dataset": "bun packages/datasets/src/cli.ts",
+    "checkpoint": "bun packages/checkpoint/src/cli.ts",
     "release": "bun tools/release.ts"
   },
   "devDependencies": {

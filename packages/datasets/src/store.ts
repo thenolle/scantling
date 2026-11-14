@@ -116,7 +116,7 @@ export class TokenFile {
 
 /** Endless random batches read straight from a token file. */
 export class FileBatchSource implements BatchSource {
-	constructor(private readonly file: TokenFile, private readonly length: number, private readonly batch: number, private readonly random: Random) {
+	constructor(private readonly file: TokenFile, private readonly length: number, private readonly batch: number, readonly random: Random) {
 		if (file.count < length + 1) throw new RangeError(`Need at least ${length + 1} tokens, the file has ${file.count}`)
 	}
 

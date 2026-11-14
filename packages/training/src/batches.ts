@@ -63,7 +63,7 @@ export class TokenWindows {
 
 /** Endless random batches from a `TokenWindows`. */
 export class RandomBatchSource implements BatchSource {
-	constructor(private readonly windows: TokenWindows, private readonly batch: number, private readonly random: Random) { }
+	constructor(private readonly windows: TokenWindows, private readonly batch: number, readonly random: Random) { }
 
 	next(): Batch {
 		return this.windows.sample(this.batch, this.random)

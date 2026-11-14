@@ -11,9 +11,7 @@ function summarize(manifest: DatasetManifest): void {
 	console.log(`Included     ${totals.documents} documents, ${totals.bytes} bytes`)
 	console.log(`Tokens       ${totals.trainTokens} train, ${totals.validationTokens} validation (${(totals.bytes / Math.max(1, totals.trainTokens + totals.validationTokens)).toFixed(2)} bytes per token)`)
 	const reasons = new Map<string, number>()
-	for (const file of manifest.files) {
-		if (file.status === 'excluded') reasons.set((file.reason ?? 'unknown').split(':')[0]!, (reasons.get((file.reason ?? 'unknown').split(':')[0]!) ?? 0) + 1)
-	}
+	for (const file of manifest.files) { if (file.status === 'excluded') reasons.set((file.reason ?? 'unknown').split(':')[0]!, (reasons.get((file.reason ?? 'unknown').split(':')[0]!) ?? 0) + 1) }
 	for (const [reason, count] of reasons) console.log(`Excluded     ${count} x ${reason}`)
 }
 
@@ -21,14 +19,9 @@ if (command === 'build') {
 	const tokenizerPath = option('--tokenizer') ?? 'data/tokenizer.json'
 	if (inputs.length === 0) throw new Error('Usage: build --input <path>... [--tokenizer file] [--out dir] [--validation 5] [--approve]')
 	const approved = rest.includes('--approve')
-	const report = await buildDataset({
-		inputs,
-		tokenizer: Tokenizer.fromJson(await Bun.file(tokenizerPath).text()),
-		outputDirectory: option('--out') ?? 'data/datasets/default',
-		validationPercent: Number(option('--validation') ?? 5),
-		approved
-	})
+	const report = await buildDataset({ inputs, tokenizer: Tokenizer.fromJson(await Bun.file(tokenizerPath).text()), outputDirectory: option('--out') ?? 'data/datasets/default', validationPercent: Number(option('--validation') ?? 5), approved })
 	summarize(report.manifest)
+	if (rest.includes('--verbose')) { for (const file of report.manifest.files) if (file.status === 'excluded') console.log(`  ${file.reason}  ${file.path}`) }
 	if (report.manifestPath === undefined) console.log('\nDry run: nothing was written. Review the exclusions, then repeat the command with --approve to write the dataset.')
 	else console.log(`\nWritten to ${report.manifestPath}`)
 } else if (command === 'inspect') {

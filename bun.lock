@@ -16,6 +16,15 @@
         "@scantling/tensor": "workspace:*",
       },
     },
+    "packages/checkpoint": {
+      "name": "@scantling/checkpoint",
+      "version": "0.1.0",
+      "dependencies": {
+        "@scantling/nn": "workspace:*",
+        "@scantling/tensor": "workspace:*",
+        "@scantling/training": "workspace:*",
+      },
+    },
     "packages/config": {
       "name": "@scantling/config",
       "version": "0.1.0",
@@ -97,6 +106,8 @@
     "@scantling/autodiff": ["@scantling/autodiff@workspace:packages/autodiff"],
 
     "@scantling/bench": ["@scantling/bench@workspace:tools/bench"],
+
+    "@scantling/checkpoint": ["@scantling/checkpoint@workspace:packages/checkpoint"],
 
     "@scantling/config": ["@scantling/config@workspace:packages/config"],
 

@@ -90,6 +90,12 @@ export class Trainer {
 		return this.#skipped
 	}
 
+	/** Restores the step counters when resuming from a checkpoint. */
+	resume(step: number, skippedSteps: number): void {
+		this.#step = step
+		this.#skipped = skippedSteps
+	}
+
 	trainStep(source: BatchSource): StepMetrics {
 		const started = performance.now()
 		const variables = this.#params.map((entry) => entry.variable)
