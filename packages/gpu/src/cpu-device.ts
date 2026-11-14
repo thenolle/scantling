@@ -99,7 +99,6 @@ export class CpuDevice implements ComputeDevice {
 					out.data[at] = alpha * product.data[row * n + col]! + (beta === 0 ? 0 : beta * out.data[at]!)
 				}
 			}
-			for (let element = 0; element < m * n; element += 1) out.data[cOffset + element] = alpha * product.data[element]! + (beta === 0 ? 0 : beta * out.data[cOffset + element]!)
 		}
 	}
 

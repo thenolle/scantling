@@ -3,10 +3,10 @@ import { moduleSource } from '../src/cuda/module.ts'
 import { KERNEL_NAMES, elementwiseKernel, sgemmKernel } from '../src/cuda/ptx.ts'
 
 const kernels = [
-	['sgemm_nn', sgemmKernel('sgemm_nn', false, false), 15],
-	['sgemm_nt', sgemmKernel('sgemm_nt', false, true), 15],
-	['sgemm_tn', sgemmKernel('sgemm_tn', true, false), 15],
-	['sgemm_tt', sgemmKernel('sgemm_tt', true, true), 15],
+	['sgemm_nn', sgemmKernel('sgemm_nn', false, false), 16],
+	['sgemm_nt', sgemmKernel('sgemm_nt', false, true), 16],
+	['sgemm_tn', sgemmKernel('sgemm_tn', true, false), 16],
+	['sgemm_tt', sgemmKernel('sgemm_tt', true, true), 16],
 	['add_f32', elementwiseKernel('add_f32'), 4],
 	['scale_f32', elementwiseKernel('scale_f32'), 4]
 ] as const
