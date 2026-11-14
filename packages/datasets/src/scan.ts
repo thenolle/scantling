@@ -1,4 +1,4 @@
-import { findSecrets } from '@scantling/telemetry'
+import { findSourceSecrets } from '@scantling/telemetry'
 
 const SENSITIVE_PATHS: readonly RegExp[] = [
 	/(^|[\\/])\.env(\.|$)/i,
@@ -8,13 +8,18 @@ const SENSITIVE_PATHS: readonly RegExp[] = [
 	/(^|[\\/])(credentials?|secrets?)(\.[a-z]+)?$/i
 ]
 
+const GENERATED_PATHS: readonly RegExp[] = [/(^|[\\/])generated([\\/]|$)/i, /\.min\.(js|css)$/i, /\.generated\./i]
+
 const EMAIL = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g
 
-/**
- * True for files that usually hold credentials or keys. They are never read into a dataset.
- */
+/** True for files that usually hold credentials or keys. They are never read into a dataset. */
 export function isSensitivePath(path: string): boolean {
 	return SENSITIVE_PATHS.some((pattern) => pattern.test(path))
+}
+
+/** True for machine-generated or minified files, which teach a model nothing about how people write code. */
+export function isGeneratedPath(path: string): boolean {
+	return GENERATED_PATHS.some((pattern) => pattern.test(path))
 }
 
 export interface ScanResult {
@@ -36,5 +41,5 @@ export function scanDocument(text: string): ScanResult {
 		emails += 1
 		return 'user@example.com'
 	})
-	return { secrets: findSecrets(text), emails, text: redacted }
+	return { secrets: findSourceSecrets(text), emails, text: redacted }
 }

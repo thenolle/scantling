@@ -1,7 +1,7 @@
 import { Tokenizer, collectTextFiles, trainBpe } from '@scantling/tokenizer'
 import { buildDataset } from './pipeline.ts'
 import type { DatasetManifest } from './pipeline.ts'
-import { isSensitivePath, scanDocument } from './scan.ts'
+import { isGeneratedPath, isSensitivePath, scanDocument } from './scan.ts'
 
 const [command, ...rest] = Bun.argv.slice(2)
 const option = (name: string): string | undefined => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined)
@@ -34,7 +34,7 @@ if (command === 'build') {
 	const seen = new Set<string>()
 	let skipped = 0
 	for await (const file of collectTextFiles(inputs)) {
-		const scan = isSensitivePath(file.path) ? undefined : scanDocument(file.text)
+		const scan = isSensitivePath(file.path) || isGeneratedPath(file.path) ? undefined : scanDocument(file.text)
 		if (scan === undefined || scan.secrets.length > 0) {
 			skipped += 1
 			continue

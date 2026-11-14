@@ -3,8 +3,9 @@ import { mkdir, mkdtemp, readdir, rm, stat, truncate } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Random } from '@scantling/tensor'
+import { findSourceSecrets } from '@scantling/telemetry'
 import { DEFAULT_SPECIAL_TOKENS, Tokenizer } from '@scantling/tokenizer'
-import { FileBatchSource, TokenFile, TokenWriter, buildDataset, fileEvaluationBatches, isSensitivePath, lineHashes, overlapRatio, scanDocument, splitOf } from '../src/index.ts'
+import { FileBatchSource, TokenFile, TokenWriter, buildDataset, fileEvaluationBatches, isGeneratedPath, isSensitivePath, lineHashes, overlapRatio, scanDocument, splitOf } from '../src/index.ts'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -33,6 +34,21 @@ test('sensitive paths and secrets are recognised, emails are redacted', () => {
 	expect(scan.secrets).toContain('github-token')
 	expect(scan.emails).toBe(1)
 	expect(scan.text).not.toContain('jane.doe')
+})
+
+test('source scanning ignores identifiers and flags secret-looking literals', () => {
+	for (const harmless of ['password: string', 'const token = jwt.sign(payload)', 'passwordHash: await hash(input)', "token: 'short'", 'if (!password) return']) {
+		expect(findSourceSecrets(harmless)).toEqual([])
+	}
+	expect(findSourceSecrets("const apiKey = 'abc123def456ghi789jkl'")).toContain('assigned-literal')
+	expect(findSourceSecrets('API_SECRET=abcd1234efgh5678ijkl9012mnop')).toContain('assigned-literal')
+	expect(findSourceSecrets(`const t = '${githubToken}'`)).toContain('github-token')
+})
+
+test('generated and minified paths are recognised', () => {
+	expect(isGeneratedPath('prisma/generated/client/index.js')).toBe(true)
+	expect(isGeneratedPath('dist/app.min.js')).toBe(true)
+	expect(isGeneratedPath('src/index.ts')).toBe(false)
 })
 
 test('a token file round-trips beyond one buffer and rejects bad ids', async () => {

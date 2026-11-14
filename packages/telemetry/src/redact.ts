@@ -42,6 +42,22 @@ export function findSecrets(value: string): string[] {
 }
 
 /**
+ * Patterns for scanning source code. Identical to `SECRET_PATTERNS` except that a name such as `password`
+ * or `token` only counts when it is assigned a quoted literal that looks like a secret (16 or more characters
+ * with letters and digits, no spaces) or a long unquoted token, so `password: string` and `token = sign(x)`
+ * are not flagged.
+ */
+export const SOURCE_SECRET_PATTERNS: readonly SecretPattern[] = [
+	...SECRET_PATTERNS.filter((entry) => entry.name !== 'assigned-secret'),
+	{ name: 'assigned-literal', pattern: /(?<=(?:password|passwd|secret|token|api[_-]?key|private[_-]?key)["']?\s*[=:]\s*)(?:"(?=[^"\s]*\d)(?=[^"\s]*[A-Za-z])[^"\s]{16,}"|'(?=[^'\s]*\d)(?=[^'\s]*[A-Za-z])[^'\s]{16,}'|(?=[A-Za-z0-9+/_=-]*\d)(?=[A-Za-z0-9+/_=-]*[A-Za-z])[A-Za-z0-9+/_=-]{24,})/i }
+]
+
+/** Names of the source-code secret patterns found in `value`. */
+export function findSourceSecrets(value: string): string[] {
+	return SOURCE_SECRET_PATTERNS.filter(({ pattern }) => pattern.test(value)).map(({ name }) => name)
+}
+
+/**
  * Converts any value into a JSON-safe structure: secrets are redacted, sensitive keys are
  * masked, errors become plain objects, and cycles, deep nesting and huge collections are cut off.
  */
