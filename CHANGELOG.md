@@ -14,6 +14,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Tensor library with broadcasting, reductions, matrix products, softmax and seeded random numbers.
 - Documentation pages are prerendered with canonical URLs, Open Graph and X metadata, per-page social images, structured data, a sitemap and a web manifest.
 - Documentation styling follows shadcn's neutral theme tokens.
+- Reverse-mode automatic differentiation with broadcasting-aware gradients, gradient clipping and a finite-difference gradient checker.
 
 ### Fixed
 
