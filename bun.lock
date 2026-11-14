@@ -44,6 +44,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@scantling/autodiff": "workspace:*",
+        "@scantling/nn": "workspace:*",
         "@scantling/tensor": "workspace:*",
         "@scantling/training": "workspace:*",
       },

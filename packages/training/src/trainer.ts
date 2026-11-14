@@ -50,6 +50,8 @@ export interface RunOptions {
 	readonly signal?: AbortSignal
 	/** Replaces the default single-threaded step, for example with a parallel one. */
 	readonly stepper?: (source: BatchSource) => StepMetrics | Promise<StepMetrics>
+	/** Replaces `evaluate`, for example with an evaluation on the GPU. */
+	readonly evaluator?: (batches: Iterable<Batch>) => EvalResult
 }
 
 export interface RunSummary {
@@ -160,7 +162,7 @@ export class Trainer {
 			history.push(metrics)
 			options.onStep?.(metrics)
 			if (options.evalEvery !== undefined && options.evalBatches !== undefined && this.#step % options.evalEvery === 0) {
-				const result = this.evaluate(options.evalBatches())
+				const result = (options.evaluator ?? ((batches: Iterable<Batch>) => this.evaluate(batches)))(options.evalBatches())
 				evaluations.push({ step: this.#step, result })
 				options.onEval?.(this.#step, result)
 			}

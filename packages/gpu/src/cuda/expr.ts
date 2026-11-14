@@ -256,7 +256,7 @@ export function rowKernel(spec: RowSpec): Program {
 	}
 	let labels = 0
 	const nextLabel = (): string => `$L_${labels++}`
-	const ints = ['cols', 'window']
+	const ints = ['cols', 'window', ...(spec.ints ?? [])]
 	const { pointers, ints: integers, floats } = prologue(regs, emit, spec.buffers, ints, spec.floats)
 	const cols = need(integers, 'cols', 'integer')
 	const window = need(integers, 'window', 'integer')

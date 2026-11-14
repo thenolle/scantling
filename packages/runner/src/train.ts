@@ -9,14 +9,14 @@ import { Tokenizer } from '@scantling/tokenizer'
 import { bitsPerByte, smokeChecks, tokenBytes, unigramLoss } from './evaluation.ts'
 import { GIB, MIB, ResourceMonitor, computeBudget, detectHardware, formatBytes } from '@scantling/hardware'
 import { AdamW, ParallelTrainer, estimateParallelMemory, warmupCosine } from '@scantling/training'
-import { selectDevice } from '@scantling/gpu'
+import { CudaDevice, GpuTrainer, selectDevice } from '@scantling/gpu'
 
 const args = Bun.argv.slice(2)
 const option = (name: string): string | undefined => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
 const value = (name: string, fallback: number): number => Number(option(name) ?? fallback)
 
 if (args.includes('--help')) {
-	console.log('bun run train -- [--dataset dir] [--tokenizer file] [--preset micro|tiny|small] [--steps N] [--length 128] [--micro-batch 2]\n  [--rounds 1] [--workers N] [--peak-lr 0.002] [--eval-every 100] [--checkpoint-every 250] [--log-every 10] [--name run] [--seed 1] [--resume] [--device cpu|gpu|auto]')
+	console.log('bun run train -- [--dataset dir] [--tokenizer file] [--preset micro|tiny|small] [--steps N] [--length 128] [--micro-batch 2]\n  [--rounds 1] [--workers N] [--peak-lr 0.002] [--eval-every 100] [--checkpoint-every 250] [--log-every 10] [--name run] [--seed 1] [--resume] [--device cpu|gpu|auto] [--gpu-micro-batch 32] [--gpu-accumulate 2]')
 	process.exit(0)
 }
 
@@ -34,13 +34,19 @@ const checkpointEvery = value('--checkpoint-every', 250)
 const logEvery = value('--log-every', 10)
 const deviceRequest = option('--device') ?? 'cpu'
 if (deviceRequest !== 'cpu' && deviceRequest !== 'gpu' && deviceRequest !== 'auto') throw new Error(`--device must be cpu, gpu or auto, received "${deviceRequest}"`)
-if (deviceRequest === 'gpu') throw new Error('Training on the GPU is not implemented yet. The CUDA backend currently provides device management and matrix multiplication. Use --device cpu, or --device auto to see what is available.')
+let gpuDevice: CudaDevice | undefined
 let deviceNote = 'training runs on the CPU'
-if (deviceRequest === 'auto') {
-	const selection = selectDevice('auto')
-	deviceNote = selection.device.info.kind === 'cuda' ? `${selection.device.info.name} is available but training runs on the CPU until the GPU training step lands` : `no usable GPU (${selection.fallbackReason ?? 'unknown reason'}), training runs on the CPU`
-	selection.device.dispose()
+if (deviceRequest !== 'cpu') {
+	const selection = selectDevice(deviceRequest)
+	if (selection.device instanceof CudaDevice) {
+		gpuDevice = selection.device
+		deviceNote = `${selection.device.info.name}, compute ${selection.device.info.computeCapability}`
+	} else {
+		deviceNote = `no usable GPU (${selection.fallbackReason ?? 'unknown reason'}); training runs on the CPU`
+	}
 }
+const gpuMicroBatch = value('--gpu-micro-batch', 32)
+const gpuAccumulation = value('--gpu-accumulate', 2)
 
 const { logger } = createRuntimeLogger({ level: 'info', directory: 'data/logs', toFile: true, maxFileBytes: 10 * 1024 * 1024, maxFiles: 5 })
 const profile = await detectHardware({ storagePaths: [process.cwd()] })
@@ -54,7 +60,7 @@ if (train.vocabSize !== tokenizer.vocabSize) throw new Error(`The dataset was bu
 
 const model = new Transformer(presetConfig(preset, tokenizer.vocabSize), seed)
 const optimizer = new AdamW()
-const source = new FileBatchSource(train, length, microBatch, new Random(seed + 1))
+const source = new FileBatchSource(train, length, gpuDevice === undefined ? microBatch : gpuMicroBatch, new Random(seed + 1))
 const evalSet = fileEvaluationBatches(validation, length, 8, 16)
 const evalTargets = evalSet.flatMap((batch) => Array.from(batch.targets))
 const baseline = unigramLoss(train.read(0, Math.min(train.count, 20_000_000)), evalTargets, tokenizer.vocabSize)
@@ -62,17 +68,10 @@ const evalBytes = tokenBytes(tokenizer, evalTargets)
 
 const memoryLimit = option('--max-memory-gib') === undefined ? budget.trainingMemoryBytes : value('--max-memory-gib', 0) * GIB
 const needed = estimateParallelMemory(model.parameterCount(), workers, rounds, value('--worker-mib', 150) * MIB)
-if (needed > memoryLimit) throw new Error(`Not enough memory: ${formatBytes(profile.memory.availableBytes)} of ${formatBytes(profile.memory.totalBytes)} is free, minus a ${reserveGiB} GiB reserve leaves ${formatBytes(budget.trainingMemoryBytes)}, but ${workers} workers with ${rounds} micro-batches each need at least ${formatBytes(needed)} plus activations. Close other programs, lower --workers or --rounds, or pass --max-memory-gib N to override.`)
+if (gpuDevice === undefined && needed > memoryLimit) throw new Error(`Not enough memory: ${formatBytes(profile.memory.availableBytes)} of ${formatBytes(profile.memory.totalBytes)} is free, minus a ${reserveGiB} GiB reserve leaves ${formatBytes(budget.trainingMemoryBytes)}, but ${workers} workers with ${rounds} micro-batches each need at least ${formatBytes(needed)} plus activations. Close other programs, lower --workers or --rounds, or pass --max-memory-gib N to override.`)
 
-const trainer = new ParallelTrainer({
-	model,
-	optimizer,
-	schedule: warmupCosine({ peak: value('--peak-lr', 2e-3), warmupSteps: Math.max(20, Math.floor(steps * 0.05)), totalSteps: steps }),
-	workers,
-	rounds,
-	maxGradNorm: 1,
-	maxMemoryBytes: memoryLimit
-})
+const schedule = warmupCosine({ peak: value('--peak-lr', 2e-3), warmupSteps: Math.max(20, Math.floor(steps * 0.05)), totalSteps: steps })
+const trainer = gpuDevice === undefined ? new ParallelTrainer({ model, optimizer, schedule, workers, rounds, maxGradNorm: 1, maxMemoryBytes: memoryLimit }) : new GpuTrainer({ model, optimizer, schedule, device: gpuDevice, microBatch: gpuMicroBatch, length, accumulation: gpuAccumulation, maxGradNorm: 1 })
 
 const store = new CheckpointStore(`data/checkpoints/${name}`)
 if (args.includes('--resume')) {
@@ -86,7 +85,7 @@ if (args.includes('--resume')) {
 	logger.info('Resumed', { checkpoint: id, step: state.step })
 }
 
-const tokensPerStep = workers * rounds * microBatch * length
+const tokensPerStep = gpuDevice === undefined ? workers * rounds * microBatch * length : gpuMicroBatch * gpuAccumulation * length
 logger.info('Training plan', {
 	parameters: model.parameterCount(),
 	trainTokens: train.count,
@@ -98,7 +97,7 @@ logger.info('Training plan', {
 	memoryBudget: formatBytes(budget.trainingMemoryBytes),
 	uniformLoss: Number(Math.log(tokenizer.vocabSize).toFixed(4)),
 	unigramBaseline: Number(baseline.toFixed(4)),
-	device: 'cpu', deviceNote,
+	device: gpuDevice === undefined ? 'cpu' : 'cuda', deviceNote,
 })
 
 let lastEval = trainer.evaluate(evalSet)
@@ -167,5 +166,6 @@ logger.info(summary.stopped ? 'Stopped early' : 'Finished', {
 	skippedSteps: trainer.skippedSteps
 })
 await trainer.close()
+gpuDevice?.dispose()
 train.close()
 validation.close()

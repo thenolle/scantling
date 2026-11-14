@@ -10,6 +10,7 @@
   "dependencies": {
     "@scantling/tensor": "workspace:*",
 		"@scantling/autodiff": "workspace:*",
-		"@scantling/training": "workspace:*"
+		"@scantling/training": "workspace:*",
+		"@scantling/nn": "workspace:*"
   }
 }
