@@ -43,6 +43,18 @@
       "name": "@scantling/hardware",
       "version": "0.1.0",
     },
+    "packages/inference": {
+      "name": "@scantling/inference",
+      "version": "0.1.0",
+      "dependencies": {
+        "@scantling/autodiff": "workspace:*",
+        "@scantling/checkpoint": "workspace:*",
+        "@scantling/nn": "workspace:*",
+        "@scantling/tensor": "workspace:*",
+        "@scantling/tokenizer": "workspace:*",
+        "@scantling/training": "workspace:*",
+      },
+    },
     "packages/nn": {
       "name": "@scantling/nn",
       "version": "0.1.0",
@@ -115,6 +127,8 @@
     "@scantling/datasets": ["@scantling/datasets@workspace:packages/datasets"],
 
     "@scantling/hardware": ["@scantling/hardware@workspace:packages/hardware"],
+
+    "@scantling/inference": ["@scantling/inference@workspace:packages/inference"],
 
     "@scantling/nn": ["@scantling/nn@workspace:packages/nn"],
 
