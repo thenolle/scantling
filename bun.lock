@@ -24,12 +24,24 @@
       "name": "@scantling/hardware",
       "version": "0.1.0",
     },
+    "packages/nn": {
+      "name": "@scantling/nn",
+      "version": "0.1.0",
+      "dependencies": {
+        "@scantling/autodiff": "workspace:*",
+        "@scantling/tensor": "workspace:*",
+      },
+    },
     "packages/telemetry": {
       "name": "@scantling/telemetry",
       "version": "0.1.0",
     },
     "packages/tensor": {
       "name": "@scantling/tensor",
+      "version": "0.1.0",
+    },
+    "packages/tokenizer": {
+      "name": "@scantling/tokenizer",
       "version": "0.1.0",
     },
     "packages/workers": {
@@ -71,9 +83,13 @@
 
     "@scantling/hardware": ["@scantling/hardware@workspace:packages/hardware"],
 
+    "@scantling/nn": ["@scantling/nn@workspace:packages/nn"],
+
     "@scantling/telemetry": ["@scantling/telemetry@workspace:packages/telemetry"],
 
     "@scantling/tensor": ["@scantling/tensor@workspace:packages/tensor"],
+
+    "@scantling/tokenizer": ["@scantling/tokenizer@workspace:packages/tokenizer"],
 
     "@scantling/website": ["@scantling/website@workspace:website"],
 
