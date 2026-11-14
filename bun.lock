@@ -5,8 +5,15 @@
     "": {
       "name": "scantling",
       "devDependencies": {
-        "@types/bun": "^1.4.4",
-        "typescript": "^7.0.2",
+        "@types/bun": "1.4.4",
+        "typescript": "7.0.2",
+      },
+    },
+    "packages/autodiff": {
+      "name": "@scantling/autodiff",
+      "version": "0.1.0",
+      "dependencies": {
+        "@scantling/tensor": "workspace:*",
       },
     },
     "packages/config": {
@@ -38,6 +45,8 @@
     "@gambrel/bun": ["@gambrel/bun@0.2.3", "", { "dependencies": { "@gambrel/core": "^0.2.3" } }, "sha512-TjSrMgxqVt9tGXtG3bwO7cmAoE5q/cBz4HaSkmzcK2nHKI0aFxJ6pDUkXjIqcowG7d932kP7xdnuANv+Je4v2w=="],
 
     "@gambrel/core": ["@gambrel/core@0.2.3", "", {}, "sha512-Ak1Rqs1XUSWHesogCA+x8+ectj7qCgRYgkujcJ1XEJUGHStSDOpsobBmFShXWljsS0SdtV+YYqtkdFGTf0PBTQ=="],
+
+    "@scantling/autodiff": ["@scantling/autodiff@workspace:packages/autodiff"],
 
     "@scantling/config": ["@scantling/config@workspace:packages/config"],
 
