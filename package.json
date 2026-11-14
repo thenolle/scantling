@@ -1,0 +1,26 @@
+{
+  "name": "scantling",
+  "private": true,
+  "version": "0.1.0",
+  "license": "PolyForm-Strict-1.0.0",
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*", "tools/*", "website"],
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test",
+    "audit": "bun tools/audit-deps.ts",
+    "check": "bun run typecheck && bun run audit && bun run test",
+    "docs": "bun run --filter @scantling/website dev",
+    "docs:build": "bun run --filter @scantling/website build",
+    "dev": "bun run --filter @scantling/web dev",
+    "build": "bun run --filter @scantling/web build",
+    "start": "bun run --filter @scantling/web start",
+    "train": "bun packages/training/src/cli.ts",
+    "bench": "bun tools/bench.ts",
+    "release": "bun tools/release.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "typescript": "^7.0.2"
+  }
+}

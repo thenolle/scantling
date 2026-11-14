@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.cache/
+data/
+*.log
+*.tmp
+.env
+.env.*
+!.env.example
+*.ckpt
+*.weights
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+coverage/
