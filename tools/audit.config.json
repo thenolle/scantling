@@ -22,5 +22,5 @@
   ],
   "sourceRoots": ["packages", "apps", "tools", "website/src", "website/scripts"],
   "sourceExtensions": [".ts", ".tsx", ".mts", ".js", ".mjs"],
-  "ignoredDirs": ["node_modules", ".git", "dist", "vendor", ".cache"]
+  "ignoredDirectories": ["node_modules", ".git", "dist", "vendor", ".cache"]
 }
