@@ -29,6 +29,7 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Allocation-free single-token decoder with optional int8 weights.
 - WebAssembly SIMD matrix kernel assembled from TypeScript, with automatic fallback, a profiler for training steps and memory diagnostics in the training runner.
 - Model quality checks: next-token accuracy, a greedy completion test against held-out code, and an `evaluate` command.
+- CUDA device backend (driver API through bun:ffi, PTX kernels) with device abstraction, device tensors and GPU matrix multiplication; GPU training is not implemented yet.
 
 ### Changed
 
