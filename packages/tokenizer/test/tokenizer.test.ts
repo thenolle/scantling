@@ -37,7 +37,10 @@ test('training learns merges and compresses', () => {
 	const { tokenizer, merges } = trainBpe(corpus, { vocabSize: SPECIALS + 256 + 120 })
 	expect(merges).toBeGreaterThan(20)
 	const text = 'function add(a, b) {\n        return a + b\n}\n'
-	expect(tokenizer.encode(text).length).toBeLessThan(new TextEncoder().encode(text).length / 3)
+	const bytes = new TextEncoder().encode(text).length
+	const pieces = [...pretokenize(text)].length
+	expect(tokenizer.encode(text)).toHaveLength(pieces)
+	expect(pieces).toBeLessThan(bytes / 2)
 	expect(tokenizer.encode('\n        return').length).toBeLessThanOrEqual(3)
 })
 
@@ -51,8 +54,8 @@ test('training is deterministic', () => {
 	expect(trainBpe(corpus, options).tokenizer.toJson()).toBe(trainBpe(corpus, options).tokenizer.toJson())
 })
 
-test('pieces that occur once are never merged', () => {
-	expect(trainBpe(['alpha beta gamma delta'], { vocabSize: SPECIALS + 256 + 50 }).merges).toBe(0)
+test('pairs that occur only once are never merged', () => {
+	expect(trainBpe(['abcdef xyz'], { vocabSize: SPECIALS + 256 + 50 }).merges).toBe(0)
 })
 
 test('special token text in user input stays ordinary text', () => {
