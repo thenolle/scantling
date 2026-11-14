@@ -21,17 +21,26 @@ When a value feeds several operations, the contributions are added. When an oper
 
 ## Gradient rules
 
-| Operation                         | Gradient with respect to inputs                                  |
-| --------------------------------- | ---------------------------------------------------------------- |
-| `a + b`                           | `g` to both, summed to each input's shape                        |
-| `a * b`                           | `g * b` and `g * a`                                              |
-| `a / b`                           | `g / b` and `-g * a / b^2`                                       |
-| `exp(a)`                          | `g * exp(a)`                                                     |
-| `log(a)`                          | `g / a`                                                          |
-| `sqrt(a)`                         | `g / (2 * sqrt(a))`                                              |
-| `A @ B`                           | `g @ B^T` and `A^T @ g`, using transpose flags instead of copies |
-| `sum`, `mean`                     | `g` expanded to the input shape, divided by the count for `mean` |
-| `reshape`, `permute`, `transpose` | `g` reshaped or permuted back                                    |
+| Operation                                 | Gradient with respect to inputs                                                                              |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `a + b`                                   | `g` to both, summed to each input's shape                                                                    |
+| `a * b`                                   | `g * b` and `g * a`                                                                                          |
+| `a / b`                                   | `g / b` and `-g * a / b^2`                                                                                   |
+| `exp(a)`                                  | `g * exp(a)`                                                                                                 |
+| `log(a)`                                  | `g / a`                                                                                                      |
+| `sqrt(a)`                                 | `g / (2 * sqrt(a))`                                                                                          |
+| `A @ B`                                   | `g @ B^T` and `A^T @ g`, using transpose flags instead of copies                                             |
+| `sum`, `mean`                             | `g` expanded to the input shape, divided by the count for `mean`                                             |
+| `reshape`, `permute`, `transpose`         | `g` reshaped or permuted back                                                                                |
+| `relu`, `sigmoid`, `tanh`, `silu`, `gelu` | `g` times the pointwise derivative                                                                           |
+| `softmax`                                 | `y * (g - sum(g * y))` along the axis                                                                        |
+| `logSoftmax`                              | `g - softmax * sum(g)` along the axis                                                                        |
+| `crossEntropy`                            | `(softmax - onehot) / count`, with no one-hot matrix                                                         |
+| `embedding`                               | The rows of `g` added back into a zero table                                                                 |
+| `sliceAxis`, `concat`                     | `g` zero-padded, or `g` sliced per input                                                                     |
+| `maskedFill`                              | `g` where the mask is zero, otherwise 0                                                                      |
+| `rmsNorm`                                 | `dx = r * (dx̂ - x̂ * mean(dx̂ * x̂))` and `dw = sum(g * x̂)`, where `r = 1 / sqrt(mean(x²) + ε)` and `x̂ = x * r` |
+| `rope`                                    | `g` rotated by the negative angle                                                                            |
 
 ## Safety properties
 
@@ -52,4 +61,4 @@ For a non-scalar output, the loss is a fixed random weighted sum of the outputs,
 
 ## Not yet implemented
 
-Activations, softmax, embeddings, slicing, concatenation, cross-entropy and normalization layers come next, each with its own gradient check. Gradient checkpointing is added once the Transformer exists and its activation memory can be measured.
+Gradient checkpointing is added once the Transformer exists and its activation memory can be measured. Operations are added only when a model component needs them, each with a finite-difference check.
