@@ -1,0 +1,16 @@
+{
+  "name": "@scantling/website",
+  "version": "0.1.0",
+  "license": "PolyForm-Strict-1.0.0",
+  "private": true,
+  "description": "Client-rendered documentation site built from the Markdown files in docs/.",
+  "type": "module",
+  "scripts": {
+    "dev": "bun scripts/serve.ts",
+    "build": "bun scripts/build.ts"
+  },
+  "dependencies": {
+    "@gambrel/bun": "0.2.3",
+    "@gambrel/core": "0.2.3"
+  }
+}

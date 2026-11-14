@@ -9,8 +9,22 @@
         "typescript": "^7.0.2",
       },
     },
+    "website": {
+      "name": "@scantling/website",
+      "version": "0.1.0",
+      "dependencies": {
+        "@gambrel/bun": "0.2.3",
+        "@gambrel/core": "0.2.3",
+      },
+    },
   },
   "packages": {
+    "@gambrel/bun": ["@gambrel/bun@0.2.3", "", { "dependencies": { "@gambrel/core": "^0.2.3" } }, "sha512-TjSrMgxqVt9tGXtG3bwO7cmAoE5q/cBz4HaSkmzcK2nHKI0aFxJ6pDUkXjIqcowG7d932kP7xdnuANv+Je4v2w=="],
+
+    "@gambrel/core": ["@gambrel/core@0.2.3", "", {}, "sha512-Ak1Rqs1XUSWHesogCA+x8+ectj7qCgRYgkujcJ1XEJUGHStSDOpsobBmFShXWljsS0SdtV+YYqtkdFGTf0PBTQ=="],
+
+    "@scantling/website": ["@scantling/website@workspace:website"],
+
     "@types/bun": ["@types/bun@1.4.4", "", { "dependencies": { "bun-types": "1.4.4" } }, "sha512-9wkRDXUXK124pEnAutE6n/l18j+i9GC5IAHK8TmX/2nlySETmky0OU6yL5U8pW1AoKh++AN9auDCr647BfurjQ=="],
 
     "@types/node": ["@types/node@26.6.6", "", { "dependencies": { "undici-types": "~8.9.0" } }, "sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog=="],
