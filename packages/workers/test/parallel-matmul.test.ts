@@ -1,7 +1,10 @@
 import { afterAll, expect, test } from 'bun:test'
 import { allClose, matmul, Random, randomNormal } from '@scantling/tensor'
+import { setSimdEnabled } from '@scantling/tensor'
 import type { MatmulOptions } from '@scantling/tensor'
 import { ParallelMatmul } from '../src/index.ts'
+
+setSimdEnabled(false)
 
 const parallel = new ParallelMatmul({ workers: 2, minimumFlops: 0, minFlopsPerWorker: 0 })
 const random = new Random(5)

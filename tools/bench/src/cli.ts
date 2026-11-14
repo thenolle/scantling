@@ -27,16 +27,20 @@ const budget = computeBudget(profile)
 const random = new T.Random(1)
 const singleThread = new Map<number, number>()
 
-for (const n of sizes) {
-	const a = T.randomNormal([n, n], random)
-	const b = T.randomNormal([n, n], random)
-	for (const [name, options] of [['nn', {}], ['nt', { transposeB: true }], ['tn', { transposeA: true }]] as const) {
-		const sample = await measure(`${name} ${n}`, () => T.matmul(a, b, options))
-		const rate = gflops(2 * n ** 3, sample.medianMs)
-		if (name === 'nn') singleThread.set(n, rate)
-		record('Matmul, one thread', `${name} ${n}x${n}`, rate, 'GFLOP/s', `${sample.medianMs.toFixed(2)} ms median over ${sample.runs} runs`)
+for (const simd of [false, true]) {
+	T.setSimdEnabled(simd)
+	for (const n of sizes) {
+		const a = T.randomNormal([n, n], random)
+		const b = T.randomNormal([n, n], random)
+		for (const [name, options] of [['nn', {}], ['nt', { transposeB: true }], ['tn', { transposeA: true }]] as const) {
+			const sample = await measure(`${name} ${n}`, () => T.matmul(a, b, options))
+			const rate = gflops(2 * n ** 3, sample.medianMs)
+			if (name === 'nn' && !simd) singleThread.set(n, rate)
+			record(`Matmul, one thread, ${simd ? 'SIMD' : 'scalar'}`, `${name} ${n}x${n}`, rate, 'GFLOP/s', `${sample.medianMs.toFixed(2)} ms median over ${sample.runs} runs`)
+		}
 	}
 }
+T.setSimdEnabled(false)
 
 const poolSizes = [...new Set([1, 2, 4, budget.workerThreads, profile.cpu.logicalCores])].filter((size) => size <= profile.cpu.logicalCores).sort((x, y) => x - y)
 for (const size of poolSizes) {

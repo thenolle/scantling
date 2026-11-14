@@ -1,5 +1,6 @@
 import { KERNELS, accumulatorFor, kernelKind } from './kernels.ts'
 import type { KernelKind } from './kernels.ts'
+import { gemmSimd, simdActive } from './simd.ts'
 import { broadcastShapes, broadcastStrides, sizeOf } from './shape.ts'
 import type { Shape } from './shape.ts'
 import { Tensor } from './tensor.ts'
@@ -80,11 +81,17 @@ export function planMatmul(a: Tensor, b: Tensor, options: MatmulOptions = {}): M
  * `a` is `[...batchA, m, k]` and `b` is `[...batchB, k, n]`; the result is `[...batch, m, n]`
  * where `batch` is the broadcast of `batchA` and `batchB`. A rank-2 `b` is therefore applied
  * to every matrix of a batched `a`, which is what a linear layer needs.
+ * Large products use the SIMD kernel when the runtime supports it (float32 accumulation); small products and
+ * single-row products use the scalar kernels (64-bit accumulation).
  */
 export function matmul(a: Tensor, b: Tensor, options: MatmulOptions = {}): Tensor {
 	const plan = planMatmul(a, b, options)
-	const kernel = KERNELS[plan.kind]
 	const out = new Float32Array(plan.count * plan.m * plan.n)
+	if (simdActive(plan.m, plan.k, plan.n)) {
+		for (let index = 0; index < plan.count; index += 1) gemmSimd(a.data, plan.offsetsA[index]!, options.transposeA === true, b.data, plan.offsetsB[index]!, options.transposeB === true, out, index * plan.m * plan.n, plan.m, plan.k, plan.n)
+		return new Tensor(plan.shape, out)
+	}
+	const kernel = KERNELS[plan.kind]
 	const acc = accumulatorFor(plan.n)
 	for (let index = 0; index < plan.count; index += 1) kernel(a.data, plan.offsetsA[index]!, b.data, plan.offsetsB[index]!, out, index * plan.m * plan.n, plan.m, plan.k, plan.n, acc, 0, plan.m)
 	return new Tensor(plan.shape, out)
