@@ -21,6 +21,10 @@
       "name": "@scantling/telemetry",
       "version": "0.1.0",
     },
+    "packages/tensor": {
+      "name": "@scantling/tensor",
+      "version": "0.1.0",
+    },
     "website": {
       "name": "@scantling/website",
       "version": "0.1.0",
@@ -40,6 +44,8 @@
     "@scantling/hardware": ["@scantling/hardware@workspace:packages/hardware"],
 
     "@scantling/telemetry": ["@scantling/telemetry@workspace:packages/telemetry"],
+
+    "@scantling/tensor": ["@scantling/tensor@workspace:packages/tensor"],
 
     "@scantling/website": ["@scantling/website@workspace:website"],
 
