@@ -8,9 +8,10 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@scantling/telemetry": "workspace:*",
     "@scantling/tensor": "workspace:*",
     "@scantling/tokenizer": "workspace:*",
-    "@scantling/training": "workspace:*"
+    "@scantling/training": "workspace:*",
+		"@scantling/hardware": "workspace:*",
+		"@scantling/telemetry": "workspace:*"
   }
 }

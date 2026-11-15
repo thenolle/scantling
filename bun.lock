@@ -21,6 +21,14 @@
         "@scantling/tokenizer": "workspace:*",
       },
     },
+    "apps/monitor": {
+      "name": "@scantling/monitor",
+      "version": "0.1.0",
+      "dependencies": {
+        "@gambrel/bun": "0.2.3",
+        "@gambrel/core": "0.2.3",
+      },
+    },
     "packages/autodiff": {
       "name": "@scantling/autodiff",
       "version": "0.1.0",
@@ -45,6 +53,7 @@
       "name": "@scantling/datasets",
       "version": "0.1.0",
       "dependencies": {
+        "@scantling/hardware": "workspace:*",
         "@scantling/telemetry": "workspace:*",
         "@scantling/tensor": "workspace:*",
         "@scantling/tokenizer": "workspace:*",
@@ -172,6 +181,8 @@
     "@scantling/hardware": ["@scantling/hardware@workspace:packages/hardware"],
 
     "@scantling/inference": ["@scantling/inference@workspace:packages/inference"],
+
+    "@scantling/monitor": ["@scantling/monitor@workspace:apps/monitor"],
 
     "@scantling/nn": ["@scantling/nn@workspace:packages/nn"],
 

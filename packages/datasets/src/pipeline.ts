@@ -4,6 +4,7 @@ import { collectTextFiles } from '@scantling/tokenizer'
 import type { Tokenizer } from '@scantling/tokenizer'
 import { isCodeLikePath, isDataList, isGeneratedPath, isMinifiedText, isSensitivePath, scanDocument } from './scan.ts'
 import { TokenWriter } from './store.ts'
+import { encodeAll } from './encode.ts'
 
 export const MANIFEST_FORMAT = 'scantling-dataset'
 
@@ -27,6 +28,9 @@ export interface DatasetManifest {
 }
 
 export interface BuildOptions {
+	readonly workers?: number
+	readonly cacheDirectory?: string
+	readonly onProgress?: (progress: BuildProgress) => void
 	readonly inputs: readonly string[]
 	readonly tokenizer: Tokenizer
 	readonly outputDirectory: string
@@ -43,6 +47,14 @@ export interface DatasetReport {
 	readonly approved: boolean
 	readonly manifest: DatasetManifest
 	readonly manifestPath: string | undefined
+	readonly timings: { readonly scanMs: number; readonly encodeMs: number; readonly writeMs: number; readonly cachedDocuments: number }
+}
+
+export interface BuildProgress {
+	readonly phase: 'scan' | 'encode' | 'write'
+	readonly done: number
+	readonly total: number
+	readonly cached?: number
 }
 
 const sha256 = (text: string): string => new Bun.CryptoHasher('sha256').update(text).digest('hex')
@@ -87,12 +99,54 @@ export async function buildDataset(options: BuildOptions): Promise<DatasetReport
 	const { tokenizer } = options
 	const fileId = tokenizer.idOf('<|file|>')
 	const endId = tokenizer.idOf('<|endfile|>')
-	const encoder = new TextEncoder()
 	const files: Disposition[] = []
 	const seen = new Set<string>()
 	const trainLines = new Set<string>()
-	const pending: { path: string; ids: number[]; lines: string[] }[] = []
+	interface Candidate { readonly path: string; readonly text: string; readonly split: 'train' | 'validation'; readonly repeat: number; readonly lines: string[] }
+	const candidates: Candidate[] = []
 	const outputRoot = resolve(options.outputDirectory) + sep
+	const scanStarted = performance.now()
+	let scanned = 0
+	for await (const file of collectTextFiles(options.inputs, options.maxFileBytes)) {
+		scanned += 1
+		if (scanned % 500 === 0) options.onProgress?.({ phase: 'scan', done: scanned, total: 0 })
+		if (resolve(file.path).startsWith(outputRoot)) { files.push({ path: file.path, status: 'excluded', reason: 'output-directory' }); continue }
+		if (isGeneratedPath(file.path)) { files.push({ path: file.path, status: 'excluded', reason: 'generated' }); continue }
+		if (isSensitivePath(file.path)) { files.push({ path: file.path, status: 'excluded', reason: 'sensitive-path' }); continue }
+		if (!isCodeLikePath(file.path, file.text.length)) { files.push({ path: file.path, status: 'excluded', reason: 'not-code' }); continue }
+		if (isMinifiedText(file.text)) { files.push({ path: file.path, status: 'excluded', reason: 'minified' }); continue }
+		if (isDataList(file.text)) { files.push({ path: file.path, status: 'excluded', reason: 'data-list' }); continue }
+		const scan = scanDocument(file.text)
+		if (scan.secrets.length > 0) { files.push({ path: file.path, status: 'excluded', reason: `secret:${scan.secrets.join('+')}` }); continue }
+		const digest = sha256(scan.text.replace(/\r\n/g, '\n').trimEnd())
+		if (seen.has(digest)) { files.push({ path: file.path, status: 'excluded', reason: 'duplicate' }); continue }
+		seen.add(digest)
+		const split = splitOf(file.path, percent)
+		const lines = lineHashes(scan.text)
+		if (split === 'train') {
+			for (const hash of lines) trainLines.add(hash)
+			candidates.push({ path: file.path, text: scan.text, split, repeat: repeatOf(file.path, options.weights), lines: [] })
+		} else {
+			candidates.push({ path: file.path, text: scan.text, split, repeat: 1, lines })
+		}
+	}
+	const included = candidates.filter((candidate) => candidate.split === 'train')
+	for (const document of candidates) {
+		if (document.split !== 'validation') continue
+		if (overlapRatio(document.lines, trainLines) >= 0.5) files.push({ path: document.path, status: 'excluded', reason: 'overlaps-train' })
+		else included.push(document)
+	}
+	const scanMs = performance.now() - scanStarted
+
+	const encodeStarted = performance.now()
+	const encoded = await encodeAll(included.map((document) => document.text), tokenizer, {
+		...(options.workers === undefined ? {} : { workers: options.workers }),
+		...(options.cacheDirectory === undefined ? {} : { cacheDirectory: options.cacheDirectory }),
+		onProgress: (done, total, cached) => options.onProgress?.({ phase: 'encode', done, total, cached })
+	})
+	const encodeMs = performance.now() - encodeStarted
+
+	const writeStarted = performance.now()
 	let bytes = 0
 	let trainTokens = 0
 	let validationTokens = 0
@@ -100,67 +154,26 @@ export async function buildDataset(options: BuildOptions): Promise<DatasetReport
 	const train = options.approved ? new TokenWriter(join(options.outputDirectory, 'train.tokens'), tokenizer.vocabSize) : undefined
 	const validation = options.approved ? new TokenWriter(join(options.outputDirectory, 'validation.tokens'), tokenizer.vocabSize) : undefined
 	try {
-		for await (const file of collectTextFiles(options.inputs, options.maxFileBytes)) {
-			if (resolve(file.path).startsWith(outputRoot)) {
-				files.push({ path: file.path, status: 'excluded', reason: 'output-directory' })
-				continue
-			}
-			if (isGeneratedPath(file.path)) {
-				files.push({ path: file.path, status: 'excluded', reason: 'generated' })
-				continue
-			}
-			if (isSensitivePath(file.path)) {
-				files.push({ path: file.path, status: 'excluded', reason: 'sensitive-path' })
-				continue
-			}
-			if (!isCodeLikePath(file.path, file.text.length)) {
-				files.push({ path: file.path, status: 'excluded', reason: 'not-code' })
-				continue
-			}
-			if (isMinifiedText(file.text)) {
-				files.push({ path: file.path, status: 'excluded', reason: 'minified' })
-				continue
-			}
-			if (isDataList(file.text)) {
-				files.push({ path: file.path, status: 'excluded', reason: 'data-list' })
-				continue
-			}
-			const scan = scanDocument(file.text)
-			if (scan.secrets.length > 0) {
-				files.push({ path: file.path, status: 'excluded', reason: `secret:${scan.secrets.join('+')}` })
-				continue
-			}
-			const digest = sha256(scan.text.replace(/\r\n/g, '\n').trimEnd())
-			if (seen.has(digest)) {
-				files.push({ path: file.path, status: 'excluded', reason: 'duplicate' })
-				continue
-			}
-			seen.add(digest)
-			const ids = [fileId, ...tokenizer.encode(scan.text), endId]
-			bytes += encoder.encode(scan.text).length
-			if (splitOf(file.path, percent) === 'train') {
-				const repeat = repeatOf(file.path, options.weights)
-				for (let copy = 0; copy < repeat; copy += 1) train?.append(ids)
-				trainTokens += ids.length * repeat
-				for (const hash of lineHashes(scan.text)) trainLines.add(hash)
-				files.push({ path: file.path, status: 'included', split: 'train', tokens: ids.length, repeat })
+		for (let index = 0; index < included.length; index += 1) {
+			const document = included[index]!
+			const ids = [fileId, ...encoded.ids[index]!, endId]
+			bytes += Buffer.byteLength(document.text, 'utf8')
+			if (document.split === 'train') {
+				for (let copy = 0; copy < document.repeat; copy += 1) train?.append(ids)
+				trainTokens += ids.length * document.repeat
+				files.push({ path: document.path, status: 'included', split: 'train', tokens: ids.length, repeat: document.repeat })
 			} else {
-				pending.push({ path: file.path, ids, lines: lineHashes(scan.text) })
+				validation?.append(ids)
+				validationTokens += ids.length
+				files.push({ path: document.path, status: 'included', split: 'validation', tokens: ids.length })
 			}
-		}
-		for (const document of pending) {
-			if (overlapRatio(document.lines, trainLines) >= 0.5) {
-				files.push({ path: document.path, status: 'excluded', reason: 'overlaps-train' })
-				continue
-			}
-			validation?.append(document.ids)
-			validationTokens += document.ids.length
-			files.push({ path: document.path, status: 'included', split: 'validation', tokens: document.ids.length })
+			if ((index + 1) % 500 === 0) options.onProgress?.({ phase: 'write', done: index + 1, total: included.length })
 		}
 	} finally {
 		train?.close()
 		validation?.close()
 	}
+	const writeMs = performance.now() - writeStarted
 	const manifest: DatasetManifest = {
 		format: MANIFEST_FORMAT,
 		version: 1,
@@ -172,5 +185,5 @@ export async function buildDataset(options: BuildOptions): Promise<DatasetReport
 	}
 	const manifestPath = options.approved ? join(options.outputDirectory, 'manifest.json') : undefined
 	if (manifestPath !== undefined) await Bun.write(manifestPath, JSON.stringify(manifest, null, 2))
-	return { approved: options.approved, manifest, manifestPath }
+	return { approved: options.approved, manifest, manifestPath, timings: { scanMs, encodeMs, writeMs, cachedDocuments: encoded.cached } }
 }

@@ -1,6 +1,7 @@
 import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync } from 'node:fs'
 import { join } from 'node:path'
 import { Tensor } from '@scantling/tensor'
+import type { ModelConfigInput } from '@scantling/nn'
 import type { CheckpointMeta, CheckpointState, TensorEntry } from './types.ts'
 import { CorruptCheckpointError } from './types.ts'
 
@@ -93,7 +94,7 @@ export function readCheckpoint(directory: string): CheckpointState {
 	return {
 		step: meta.step,
 		skippedSteps: meta.skippedSteps,
-		config: meta.config,
+		config: meta.config as ModelConfigInput,
 		weights,
 		optimizer: { kind: meta.optimizer.kind, step: meta.optimizer.step, tensors: optimizer },
 		random: meta.random,

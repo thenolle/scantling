@@ -7,7 +7,7 @@ import { createRuntimeLogger } from '@scantling/telemetry'
 import { Random } from '@scantling/tensor'
 import { Tokenizer } from '@scantling/tokenizer'
 import { bitsPerByte, smokeChecks, tokenBytes, unigramLoss } from './evaluation.ts'
-import { GIB, MIB, ResourceMonitor, computeBudget, detectHardware, formatBytes } from '@scantling/hardware'
+import { GIB, MIB, ResourceMonitor, computeBudget, detectHardware, formatBytes, keepAwake } from '@scantling/hardware'
 import { AdamW, ParallelTrainer, estimateParallelMemory, warmupCosine } from '@scantling/training'
 import { CudaDevice, GpuTrainer, estimateGpuBytes, selectDevice } from '@scantling/gpu'
 
@@ -16,7 +16,7 @@ const option = (name: string): string | undefined => (args.includes(name) ? args
 const value = (name: string, fallback: number): number => Number(option(name) ?? fallback)
 
 if (args.includes('--help')) {
-	console.log('bun run train -- [--dataset dir] [--tokenizer file] [--preset micro|tiny|small] [--steps N] [--length 128] [--micro-batch 2]\n  [--rounds 1] [--workers N] [--peak-lr 0.002] [--eval-every 100] [--checkpoint-every 250] [--log-every 10] [--name run] [--seed 1] [--resume] [--device cpu|gpu|auto] [--gpu-micro-batch 32] [--gpu-accumulate 2]')
+	console.log('bun run train -- [--dataset dir] [--tokenizer file] [--preset micro|tiny|small] [--steps N] [--length 128] [--micro-batch 2]\n  [--rounds 1] [--workers N] [--peak-lr 0.002] [--eval-every 100] [--checkpoint-every 250] [--log-every 10] [--name run] [--seed 1] [--resume] [--init-from dir] [--device cpu|gpu|auto] [--gpu-micro-batch 32] [--gpu-accumulate 2]')
 	process.exit(0)
 }
 
@@ -49,6 +49,8 @@ const gpuMicroBatch = value('--gpu-micro-batch', 32)
 const gpuAccumulation = value('--gpu-accumulate', 2)
 
 const { logger } = createRuntimeLogger({ level: 'info', directory: 'data/logs', toFile: true, maxFileBytes: 10 * 1024 * 1024, maxFiles: 5 })
+const awake = keepAwake()
+logger.info('Sleep prevention', { active: awake.active, method: awake.method })
 const profile = await detectHardware({ storagePaths: [process.cwd()] })
 const reserveGiB = value('--reserve-gib', 1)
 const budget = computeBudget(profile, { reserveBytes: reserveGiB * GIB })
@@ -74,6 +76,14 @@ const schedule = warmupCosine({ peak: value('--peak-lr', 2e-3), warmupSteps: Mat
 const trainer = gpuDevice === undefined ? new ParallelTrainer({ model, optimizer, schedule, workers, rounds, maxGradNorm: 1, maxMemoryBytes: memoryLimit }) : new GpuTrainer({ model, optimizer, schedule, device: gpuDevice, microBatch: gpuMicroBatch, length, accumulation: gpuAccumulation, maxGradNorm: 1 })
 
 const store = new CheckpointStore(`data/checkpoints/${name}`)
+const initFrom = option('--init-from')
+if (initFrom !== undefined) {
+	const initial = new CheckpointStore(initFrom)
+	const id = option('--init-id') ?? initial.stable()?.id ?? initial.latest()
+	if (id === undefined) throw new Error(`There is no checkpoint in ${initFrom} to start from`)
+	applyWeights(model.namedParameters(), initial.load(id).weights)
+	logger.info('Starting from the weights of', { checkpoint: `${initFrom}/${id}` })
+}
 if (args.includes('--resume')) {
 	const id = store.latest()
 	if (id === undefined) throw new Error('--resume was given but there is no checkpoint to resume from')
@@ -87,6 +97,7 @@ if (args.includes('--resume')) {
 
 const tokensPerStep = gpuDevice === undefined ? workers * rounds * microBatch * length : gpuMicroBatch * gpuAccumulation * length
 logger.info('Training plan', {
+	name, dataset: datasetDirectory, preset, length, seed,
 	parameters: model.parameterCount(),
 	trainTokens: train.count,
 	validationTokens: validation.count,
@@ -170,3 +181,4 @@ await trainer.close()
 gpuDevice?.dispose()
 train.close()
 validation.close()
+awake.release()

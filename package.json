@@ -31,6 +31,8 @@
 		"corpus": "bun packages/datasets/src/licensed.ts",
 		"gpu": "bun packages/gpu/src/cli.ts",
 		"benchmark:gpu": "bun packages/gpu/src/bench.ts",
+		"awake": "bun tools/keep-awake.ts",
+		"monitor": "bun apps/monitor/src/main.ts",
     "release": "bun tools/release.ts"
   },
   "devDependencies": {

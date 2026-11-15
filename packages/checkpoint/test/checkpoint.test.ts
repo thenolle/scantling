@@ -3,6 +3,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Transformer } from '@scantling/nn'
+import type { ModelConfigInput } from '@scantling/nn'
 import { allClose, Random, Tensor } from '@scantling/tensor'
 import { AdamW, RandomBatchSource, TokenWindows, Trainer, warmupCosine } from '@scantling/training'
 import { CheckpointStore, CorruptCheckpointError, applyWeights, weightsOf } from '../src/index.ts'
@@ -21,7 +22,7 @@ const temporary = async (): Promise<string> => {
 const dummy = (step: number): CheckpointState => ({
 	step,
 	skippedSteps: 0,
-	config: { a: 1 },
+	config: { a: 1 } as unknown as ModelConfigInput,
 	weights: new Map([['w', Tensor.from([2, 2], [1, 2, 3, 4])]]),
 	optimizer: { kind: 'adamw', step, tensors: new Map([['m:w', Tensor.from([4], [0.5, 0.5, 0.5, 0.5])]]) },
 	random: { batches: new Random(3).state() },

@@ -2,6 +2,9 @@ import { Tokenizer, collectTextFiles, trainBpe } from '@scantling/tokenizer'
 import { buildDataset } from './pipeline.ts'
 import type { DatasetManifest } from './pipeline.ts'
 import { isGeneratedPath, isSensitivePath, scanDocument, isCodeLikePath, isMinifiedText, isDataList } from './scan.ts'
+import { createRuntimeLogger } from '@scantling/telemetry'
+import { keepAwake } from '@scantling/hardware'
+import type { BuildProgress } from './pipeline'
 
 const [command, ...rest] = Bun.argv.slice(2)
 const option = (name: string): string | undefined => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined)
@@ -30,14 +33,38 @@ function summarize(manifest: DatasetManifest): void {
 
 if (command === 'build') {
 	const tokenizerPath = option('--tokenizer') ?? 'data/tokenizer.json'
-	const cache = option('--cache')
-	if (inputs.length === 0) throw new Error('Usage: build --input <path>... [--tokenizer file] [--out dir] [--validation 5] [--approve] [--weight <path>=<n>]')
+	if (inputs.length === 0) throw new Error('Usage: build --input <path>... [--tokenizer file] [--out dir] [--validation 5] [--approve] [--weight <path>=<n>] [--workers N] [--no-cache]')
 	const approved = rest.includes('--approve')
-	const report = await buildDataset({ inputs, tokenizer: Tokenizer.fromJson(await Bun.file(tokenizerPath).text()), outputDirectory: option('--out') ?? 'data/datasets/default', validationPercent: Number(option('--validation') ?? 5), approved, weights, ...(cache === undefined ? {} : { caches: [cache] }) })
-	summarize(report.manifest)
-	if (rest.includes('--verbose')) { for (const file of report.manifest.files) if (file.status === 'excluded') console.log(`  ${file.reason}  ${file.path}`) }
-	if (report.manifestPath === undefined) console.log('\nDry run: nothing was written. Review the exclusions, then repeat the command with --approve to write the dataset.')
-	else console.log(`\nWritten to ${report.manifestPath}`)
+	const workers = option('--workers') === undefined ? undefined : Number(option('--workers'))
+	const { logger } = createRuntimeLogger({ level: 'info', directory: 'data/logs', toFile: true, maxFileBytes: 10 * 1024 * 1024, maxFiles: 5, console: false })
+	const awake = keepAwake({ reason: 'Scantling is building a dataset' })
+	let lastShown = 0
+	const progress = (event: BuildProgress): void => {
+		const now = performance.now()
+		if (now - lastShown < 1000 && event.done !== event.total) return
+		lastShown = now
+		process.stderr.write(`\r${event.phase.padEnd(7)} ${event.done}${event.total > 0 ? `/${event.total}` : ''}${event.cached === undefined ? '' : `  (${event.cached} from cache)`}        `)
+		logger.info('Dataset progress', { phase: event.phase, done: event.done, total: event.total, ...(event.cached === undefined ? {} : { cached: event.cached }) })
+	}
+	logger.info('Dataset build started', { inputs: inputs.length, approved })
+	try {
+		const report = await buildDataset({
+			inputs, tokenizer: Tokenizer.fromJson(await Bun.file(tokenizerPath).text()), outputDirectory: option('--out') ?? 'data/datasets/default',
+			validationPercent: Number(option('--validation') ?? 5), approved, weights, onProgress: progress,
+			...(workers === undefined ? {} : { workers }),
+			...(rest.includes('--no-cache') ? {} : { cacheDirectory: option('--cache-dir') ?? 'data/cache/tokens' })
+		})
+		process.stderr.write('\n')
+		summarize(report.manifest)
+		const { timings } = report
+		console.log(`Timing       scan ${(timings.scanMs / 1000).toFixed(1)} s, encode ${(timings.encodeMs / 1000).toFixed(1)} s (${timings.cachedDocuments} of ${report.manifest.totals.documents} documents from cache), write ${(timings.writeMs / 1000).toFixed(1)} s`)
+		logger.info('Dataset finished', { documents: report.manifest.totals.documents, trainTokens: report.manifest.totals.trainTokens, scanSeconds: Math.round(timings.scanMs / 1000), encodeSeconds: Math.round(timings.encodeMs / 1000), writeSeconds: Math.round(timings.writeMs / 1000), cached: timings.cachedDocuments })
+		if (rest.includes('--verbose')) { for (const file of report.manifest.files) if (file.status === 'excluded') console.log(`  ${file.reason}  ${file.path}`) }
+		if (report.manifestPath === undefined) console.log('\nDry run: nothing was written. Review the exclusions, then repeat the command with --approve to write the dataset.')
+		else console.log(`\nWritten to ${report.manifestPath}`)
+	} finally {
+		awake.release()
+	}
 } else if (command === 'inspect') {
 	const manifest = JSON.parse(await Bun.file(`${option('--dir') ?? 'data/datasets/default'}/manifest.json`).text()) as DatasetManifest
 	console.log(`Created      ${manifest.createdAt}`)
