@@ -4,16 +4,17 @@ import { join } from 'node:path'
 const args = Bun.argv.slice(2)
 const option = (name: string): string | undefined => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
 const user = option('--user') ?? 'thenolle'
-const out = option('--out') ?? 'F:/corpus/github'
 const token = process.env['GITHUB_TOKEN']
+const out = option('--out') ?? (token !== undefined && args.includes('--private') ? 'F:/corpus/github' : 'F:/corpus/github-others')
 
 interface Repo { readonly name: string; readonly fork: boolean; readonly private: boolean; readonly size: number; readonly clone_url: string }
 
 async function listRepos(): Promise<Repo[]> {
 	const repos: Repo[] = []
 	for (let page = 1; ; page += 1) {
-		const url = token === undefined ? `https://api.github.com/users/${user}/repos?per_page=100&page=${page}` : `https://api.github.com/user/repos?affiliation=owner&per_page=100&page=${page}`
-		const response = await fetch(url, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'scantling-dataset', ...(token === undefined ? {} : { authorization: `Bearer ${token}` }) } })
+		const useToken = token !== undefined && args.includes('--private')
+		const url = useToken ? `https://api.github.com/user/repos?affiliation=owner&per_page=100&page=${page}` : `https://api.github.com/users/${user}/repos?per_page=100&page=${page}`
+		const response = await fetch(url, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'scantling-dataset', ...(useToken ? { authorization: `Bearer ${token}` } : {}) } })
 		if (!response.ok) throw new Error(`GitHub answered ${response.status} for ${url}`)
 		const batch = (await response.json()) as Repo[]
 		repos.push(...batch)

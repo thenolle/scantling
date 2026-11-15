@@ -72,15 +72,22 @@ if (command === 'download' || (command === 'extract' && option('--shard') === un
 			process.stderr.write('\n')
 			logger.info('Dataset finished', { file: dumpPath })
 		} else {
-			const shards = Number(option('--shards') ?? 8)
+			const shards = Number(option('--shards') ?? 64)
+			const jobs = Number(option('--jobs') ?? 8)
 			mkdirSync(proseDirectory, { recursive: true })
-			const children = Array.from({ length: shards }, (_, shard) =>
-				Bun.spawn([process.execPath, import.meta.path, 'extract', '--dump', dumpPath, '--out', proseDirectory, '--shard', String(shard), '--shards', String(shards)], { stdout: 'inherit', stderr: 'inherit' }))
+			const started = performance.now()
 			const timer = setInterval(() => logger.info('Dataset progress', { phase: 'extract', done: Math.round(sizeOf(proseDirectory) / 1048576), total: 0 }), 2000)
-			await Promise.all(children.map((child) => child.exited))
+			let next = 0
+			await Promise.all(Array.from({ length: jobs }, async () => {
+				for (; ;) {
+					const shard = next++
+					if (shard >= shards) return
+					const child = Bun.spawn([process.execPath, import.meta.path, 'extract', '--dump', dumpPath, '--out', proseDirectory, '--shard', String(shard), '--shards', String(shards)], { stdout: 'inherit', stderr: 'inherit' })
+					await child.exited
+				}
+			}))
 			clearInterval(timer)
-			logger.info('Dataset finished', { prose: proseDirectory, megabytes: Math.round(sizeOf(proseDirectory) / 1048576) })
-			console.log(`Wrote ${(sizeOf(proseDirectory) / 1048576).toFixed(0)} MiB of articles to ${proseDirectory}`)
+			console.log(`Took ${((performance.now() - started) / 1000).toFixed(0)} s`)
 		}
 	} finally {
 		awake.release()
@@ -88,12 +95,8 @@ if (command === 'download' || (command === 'extract' && option('--shard') === un
 } else if (command === 'extract') {
 	const shard = Number(option('--shard'))
 	const stats = extractRange({
-		dump: dumpPath, shard, shards: Number(option('--shards')), out: proseDirectory,
-		onProgress: (progress) => {
-			if (progress.streams % 200 === 0) console.log(`shard ${shard}: ${progress.streams} streams, ${progress.articles} articles`)
-		}
+		dump: dumpPath, shard, shards: Number(option('--shards')), out: proseDirectory
 	})
-	console.log(`shard ${shard} done: ${stats.streams} streams, ${stats.articles} articles, ${(stats.bytes / 1048576).toFixed(0)} MiB`)
 } else {
 	console.error('Commands: download [--lang simple|en] [--date latest|YYYYMMDD] [--dir folder] | extract [--lang ..] [--dump file] [--out folder] [--shards 8]')
 	process.exit(1)

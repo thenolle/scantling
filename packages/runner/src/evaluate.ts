@@ -4,6 +4,7 @@ import { noGrad } from '@scantling/autodiff'
 import { Transformer } from '@scantling/nn'
 import type { ModelConfigInput } from '@scantling/nn'
 import { Tokenizer } from '@scantling/tokenizer'
+import { CudaDevice, GpuModel, selectDevice } from '@scantling/gpu'
 import { bitsPerByte, spreadEvaluationBatches, tokenBytes, unigramLoss } from './evaluation.ts'
 import { evaluateCompletions, nextTokenAccuracy } from './quality.ts'
 
@@ -25,11 +26,47 @@ const length = Math.min(Number(option('--length') ?? 128), model.config.maxSeqLe
 const batches = spreadEvaluationBatches(validation, length, 8, Number(option('--eval-batches') ?? 64))
 const targets = batches.flatMap((batch) => Array.from(batch.targets))
 
-let total = 0
-for (const batch of batches) total += noGrad(() => model.loss(batch.inputs, batch.targets, batch.batch, batch.length)).value.item() * batch.batch * batch.length
-const loss = total / targets.length
+let cuda: CudaDevice | undefined
+if (option('--device') !== 'cpu') {
+	const selection = selectDevice('auto')
+	if (selection.device instanceof CudaDevice) cuda = selection.device
+}
+let loss: number
+let accuracy: { readonly top1: number; readonly top5: number; readonly tokens: number }
+if (cuda === undefined) {
+	let total = 0
+	for (const batch of batches) total += noGrad(() => model.loss(batch.inputs, batch.targets, batch.batch, batch.length)).value.item() * batch.batch * batch.length
+	loss = total / targets.length
+	accuracy = nextTokenAccuracy(model, batches)
+} else {
+	const gpu = new GpuModel(cuda, model, { batch: 8, length })
+	const vocabulary = model.config.vocabSize
+	let total = 0
+	let top1 = 0
+	let top5 = 0
+	let counted = 0
+	try {
+		gpu.uploadWeights()
+		for (const batch of batches) {
+			total += gpu.forward(batch.inputs, batch.targets, batch.batch) * batch.batch * batch.length
+			const logits = gpu.downloadLogits(batch.batch)
+			for (let position = 0; position < batch.batch * batch.length; position += 1) {
+				const row = position * vocabulary
+				const wanted = logits[row + batch.targets[position]!]!
+				let better = 0
+				for (let id = 0; id < vocabulary && better < 5; id += 1) if (logits[row + id]! > wanted) better += 1
+				if (better === 0) top1 += 1
+				if (better < 5) top5 += 1
+				counted += 1
+			}
+		}
+	} finally {
+		gpu.dispose()
+	}
+	loss = total / targets.length
+	accuracy = { top1: top1 / counted, top5: top5 / counted, tokens: counted }
+}
 const baseline = unigramLoss(train.read(0, Math.min(train.count, 20_000_000)), targets, tokenizer.vocabSize)
-const accuracy = nextTokenAccuracy(model, batches)
 const completions = evaluateCompletions(model, tokenizer, validation, { prompts: Number(option('--prompts') ?? 50), promptTokens: 48, newTokens: 64, seed: 7 })
 const percent = (value: number): string => `${(value * 100).toFixed(1)}%`
 
@@ -40,5 +77,6 @@ console.log(`Completions       ${completions.meanMatchingPrefix.toFixed(2)} lead
 console.log(`Brackets          the continuation breaks nesting in ${percent(completions.generatedMismatch)} of prompts, against ${percent(completions.realMismatch)} for the real code`)
 console.log(`Repetition        ends in a loop in ${percent(completions.generatedLoops)} of generated text, against ${percent(completions.realLoops)} of the real code`)
 for (const [index, sample] of completions.samples.entries()) console.log(`\n--- sample ${index + 1} ---\nprompt  ...${sample.prompt}\nreal    ${JSON.stringify(sample.expected.slice(0, 200))}\nmodel   ${JSON.stringify(sample.generated.slice(0, 200))}`)
+cuda?.dispose()
 train.close()
 validation.close()

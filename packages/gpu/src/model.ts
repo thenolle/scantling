@@ -159,6 +159,13 @@ export class GpuModel {
 		return total / N
 	}
 
+	/** The logits of the last `forward` for `rows` sequences: `rows * length` rows of `vocabSize` values. */
+	downloadLogits(rows: number): Float32Array {
+		const logits = new Float32Array(rows * this.length * this.config.vocabSize)
+		this.device.download(this.#b('logits'), logits)
+		return logits
+	}
+
 	/** Backward pass for the `rows` sequences of the last `forward`. Adds to the weight gradients; call `zeroGrads` first. */
 	backward(rows: number): void {
 		const c = this.config

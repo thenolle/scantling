@@ -12,25 +12,6 @@ export function decodeEntities(text: string): string {
 	})
 }
 
-function removeNested(text: string, open: string, close: string): string {
-	let depth = 0
-	let out = ''
-	let index = 0
-	while (index < text.length) {
-		if (text.startsWith(open, index)) {
-			depth += 1
-			index += open.length
-		} else if (depth > 0 && text.startsWith(close, index)) {
-			depth -= 1
-			index += close.length
-		} else {
-			if (depth === 0) out += text.charAt(index)
-			index += 1
-		}
-	}
-	return out
-}
-
 function removeTables(text: string): string {
 	const out: string[] = []
 	let depth = 0
@@ -44,32 +25,59 @@ function removeTables(text: string): string {
 	return out.join('\n')
 }
 
-function removeMediaLinks(text: string): string {
-	const media = /\[\[(?:file|image|media|category):/iy
-	let out = ''
+function removeNested(text: string, open: string, close: string): string {
+	if (!text.includes(open)) return text
+	const parts: string[] = []
+	let depth = 0
+	let last = 0
 	let index = 0
-	while (index < text.length) {
-		media.lastIndex = index
-		if (text.startsWith('[[', index) && media.test(text)) {
-			let depth = 0
-			let end = index
-			while (end < text.length) {
-				if (text.startsWith('[[', end)) {
-					depth += 1
-					end += 2
-				} else if (text.startsWith(']]', end)) {
-					depth -= 1
-					end += 2
-					if (depth === 0) break
-				} else end += 1
-			}
-			index = end
+	for (; ;) {
+		const opening = text.indexOf(open, index)
+		const closing = depth > 0 ? text.indexOf(close, index) : -1
+		if (opening === -1 && closing === -1) break
+		if (closing === -1 || (opening !== -1 && opening < closing)) {
+			if (depth === 0) parts.push(text.slice(last, opening))
+			depth += 1
+			index = opening + open.length
 		} else {
-			out += text.charAt(index)
-			index += 1
+			depth -= 1
+			index = closing + close.length
+			if (depth === 0) last = index
 		}
 	}
-	return out
+	if (depth === 0) parts.push(text.slice(last))
+	return parts.join('')
+}
+
+function removeMediaLinks(text: string): string {
+	const media = /\[\[(?:file|image|media|category):/gi
+	const parts: string[] = []
+	let last = 0
+	for (let match = media.exec(text); match !== null; match = media.exec(text)) {
+		let depth = 0
+		let end = match.index
+		while (end < text.length) {
+			const opening = text.indexOf('[[', end)
+			const closing = text.indexOf(']]', end)
+			if (closing === -1) {
+				end = text.length
+				break
+			}
+			if (opening !== -1 && opening < closing) {
+				depth += 1
+				end = opening + 2
+			} else {
+				depth -= 1
+				end = closing + 2
+				if (depth === 0) break
+			}
+		}
+		parts.push(text.slice(last, match.index))
+		last = end
+		media.lastIndex = end
+	}
+	parts.push(text.slice(last))
+	return parts.join('')
 }
 
 /** Plain text of an article, or undefined when it is a redirect, a stub, a list or a disambiguation page. */
