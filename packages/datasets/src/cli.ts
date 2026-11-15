@@ -35,6 +35,22 @@ function summarize(manifest: DatasetManifest): void {
 	for (const [reason, count] of reasons) console.log(`Excluded     ${count} x ${reason}`)
 }
 
+function sampledUnits(root: string, fraction: number): string[] {
+	const units: string[] = []
+	for (const entry of readdirSync(root, { withFileTypes: true })) {
+		if (!entry.isDirectory()) continue
+		const path = join(root, entry.name)
+		if (entry.name.startsWith('@')) {
+			for (const inner of readdirSync(path, { withFileTypes: true })) {
+				if (inner.isDirectory()) units.push(join(path, inner.name))
+			}
+		} else {
+			units.push(path)
+		}
+	}
+	return units.filter((unit) => Number(BigInt(Bun.hash(unit)) % 10_000n) < fraction * 10_000)
+}
+
 if (command === 'build') {
 	const tokenizerPath = option('--tokenizer') ?? 'data/tokenizer.json'
 	if (inputs.length === 0 && prose.length === 0) throw new Error('Usage: build --input <path>... [--tokenizer file] [--out dir] [--validation 5] [--approve] [--weight <path>=<n>] [--workers N] [--no-cache]')
@@ -78,7 +94,12 @@ if (command === 'build') {
 	const texts: string[] = []
 	const seen = new Set<string>()
 	let skipped = 0
-	for await (const file of collectTextFiles(inputs)) {
+	const started = performance.now()
+	const sampleInputs = rest.flatMap((value, index) => (rest[index - 1] === '--sample-input' ? [value] : []))
+	const sampleFraction = Number(option('--sample-fraction') ?? 0.15)
+	const sampledRoots = sampleInputs.flatMap((root) => sampledUnits(root, sampleFraction))
+	console.log(`Sampling     ${sampledRoots.length} folders from ${sampleInputs.length} roots`)
+	for await (const file of collectTextFiles([...inputs, ...sampledRoots])) {
 		const unwanted = isSensitivePath(file.path) || isGeneratedPath(file.path) || !isCodeLikePath(file.path, file.text.length) || isMinifiedText(file.text) || isDataList(file.text)
 		const scan = unwanted ? undefined : scanDocument(file.text)
 		if (scan === undefined || scan.secrets.length > 0) {
@@ -102,11 +123,21 @@ if (command === 'build') {
 		}
 		console.log(`Prose        sampled ${(keep * 100).toFixed(1)}% of ${(total / 1_048_576).toFixed(0)} MiB`)
 	}
+	console.log(`Collected    ${texts.length} documents in ${((performance.now() - started) / 1000).toFixed(0)} s`)
 	const extraSpecials = (option('--specials') ?? '').split(',').filter((token) => token !== '')
-	const result = trainBpe(texts, { vocabSize: Number(option('--vocab') ?? 4096), specialTokens: [...DEFAULT_SPECIAL_TOKENS, ...extraSpecials] })
+	const trainStarted = performance.now()
+	const result = trainBpe(texts, {
+		vocabSize: Number(option('--vocab') ?? 4096),
+		specialTokens: [...DEFAULT_SPECIAL_TOKENS, ...extraSpecials],
+		minPieceCount: Number(option('--min-piece-count') ?? 3),
+		onProgress: (merges, target) => {
+			if (merges % 1000 === 0) process.stderr.write(`\rmerges ${merges}/${target}  ${((performance.now() - trainStarted) / 1000).toFixed(0)} s   `)
+		}
+	})
+	process.stderr.write('\n')
 	const output = option('--out') ?? 'data/tokenizer.json'
 	await Bun.write(output, result.tokenizer.toJson())
-	console.log(`Trained ${result.merges} merges from ${texts.length} documents (${skipped} excluded as sensitive or secret-bearing); saved ${output}`)
+	console.log(`Trained ${result.merges} merges from ${texts.length} documents (${skipped} excluded as sensitive or secret-bearing); saved ${output} in ${((performance.now() - started) / 1000).toFixed(0)} s (${result.distinctPieces} pieces kept)`)
 } else {
 	console.error('Commands: build --input <path>... [--tokenizer file] [--out dir] [--validation 5] [--approve] | inspect [--dir dir] | tokenizer --input <path>... [--vocab 4096] [--out file]')
 	process.exit(1)

@@ -9,6 +9,8 @@ export interface TrainOptions {
 	readonly specialTokens?: readonly string[]
 	/** Pairs seen fewer times than this are never merged. Defaults to 2. */
 	readonly minFrequency?: number
+	/** Pieces seen fewer times take no part in merging, which makes training much faster. */
+	readonly minPieceCount?: number
 	readonly onProgress?: (merges: number, target: number) => void
 }
 
@@ -88,16 +90,20 @@ export function trainBpe(texts: Iterable<string>, options: TrainOptions): TrainR
 	if (!Number.isInteger(options.vocabSize) || options.vocabSize < base || options.vocabSize >= PAIR_BASE) throw new RangeError(`vocabSize must be an integer between ${base} and ${PAIR_BASE - 1}`)
 	const minFrequency = options.minFrequency ?? 2
 	const encoder = new TextEncoder()
+	const pieceCounts = new Map<string, number>()
+	for (const text of texts) {
+		for (const piece of pretokenize(text)) pieceCounts.set(piece, (pieceCounts.get(piece) ?? 0) + 1)
+	}
+	const minPieceCount = options.minPieceCount ?? 1
 	const counts = new Map<string, number>()
 	let corpusBytes = 0
-	for (const text of texts) {
-		for (const piece of pretokenize(text)) {
-			const bytes = encoder.encode(piece)
-			corpusBytes += bytes.length
-			for (const chunk of byteChunks(bytes)) {
-				const key = Buffer.from(chunk).toString('latin1')
-				counts.set(key, (counts.get(key) ?? 0) + 1)
-			}
+	for (const [piece, count] of pieceCounts) {
+		const bytes = encoder.encode(piece)
+		corpusBytes += bytes.length * count
+		if (count < minPieceCount) continue
+		for (const chunk of byteChunks(bytes)) {
+			const key = Buffer.from(chunk).toString('latin1')
+			counts.set(key, (counts.get(key) ?? 0) + count)
 		}
 	}
 	const words: Word[] = [...counts].map(([key, count]) => ({ ids: Array.from(Buffer.from(key, 'latin1'), (byte) => specials.length + byte), count }))

@@ -58,6 +58,14 @@ test('pairs that occur only once are never merged', () => {
 	expect(trainBpe(['abcdef xyz'], { vocabSize: SPECIALS + 256 + 50 }).merges).toBe(0)
 })
 
+test('pieces seen too rarely are left out of merging but still counted as corpus bytes', () => {
+	const texts = ['aa bb aa bb aa bb aa bb aa bb', 'zqxj']
+	const all = trainBpe(texts, { vocabSize: 300, minPieceCount: 1 })
+	const some = trainBpe(texts, { vocabSize: 300, minPieceCount: 2 })
+	expect(some.corpusBytes).toBe(all.corpusBytes)
+	expect(some.distinctPieces).toBeLessThan(all.distinctPieces)
+})
+
 test('special token text in user input stays ordinary text', () => {
 	const { tokenizer } = trainBpe(corpus, { vocabSize: SPECIALS + 256 + 60 })
 	const eos = tokenizer.idOf('<|eos|>')
