@@ -99,7 +99,9 @@ if (command === 'build') {
 	const sampleFraction = Number(option('--sample-fraction') ?? 0.15)
 	const sampledRoots = sampleInputs.flatMap((root) => sampledUnits(root, sampleFraction))
 	console.log(`Sampling     ${sampledRoots.length} folders from ${sampleInputs.length} roots`)
-	for await (const file of collectTextFiles([...inputs, ...sampledRoots])) {
+	const worthReading = (path: string, size: number): boolean => !isSensitivePath(path) && !isGeneratedPath(path) && isCodeLikePath(path, size)
+	let collectedChars = 0
+	for await (const file of collectTextFiles([...inputs, ...sampledRoots], undefined, worthReading)) {
 		const unwanted = isSensitivePath(file.path) || isGeneratedPath(file.path) || !isCodeLikePath(file.path, file.text.length) || isMinifiedText(file.text) || isDataList(file.text)
 		const scan = unwanted ? undefined : scanDocument(file.text)
 		if (scan === undefined || scan.secrets.length > 0) {
@@ -109,6 +111,7 @@ if (command === 'build') {
 		const key = String(Bun.hash(scan.text))
 		if (seen.has(key)) continue
 		seen.add(key)
+		collectedChars += scan.text.length
 		texts.push(scan.text)
 	}
 	const proseDirectories = rest.flatMap((value, index) => (rest[index - 1] === '--prose' ? [value] : []))
@@ -123,7 +126,7 @@ if (command === 'build') {
 		}
 		console.log(`Prose        sampled ${(keep * 100).toFixed(1)}% of ${(total / 1_048_576).toFixed(0)} MiB`)
 	}
-	console.log(`Collected    ${texts.length} documents in ${((performance.now() - started) / 1000).toFixed(0)} s`)
+	console.log(`Collected    ${texts.length} documents, ${(collectedChars / 1e6).toFixed(0)} MB, in ${((performance.now() - started) / 1000).toFixed(0)} s`)
 	const extraSpecials = (option('--specials') ?? '').split(',').filter((token) => token !== '')
 	const trainStarted = performance.now()
 	const result = trainBpe(texts, {
