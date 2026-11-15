@@ -95,6 +95,10 @@ function kv(id, rows) {
 	for (const row of rows) { const dt = document.createElement('dt'); dt.textContent = row[0]; const dd = document.createElement('dd'); dd.textContent = row[1]; dl.append(dt, dd) }
 }
 
+function brief(text) {
+	try { const o = JSON.parse(text); return Object.keys(o).map((k) => k + '=' + o[k]).join(' ') } catch (e) { return text }
+}
+
 function draw() {
 	const steps = state.steps, tip = last(steps), plan = state.plan, f = plan ? plan.fields : {}
 	const stalled = state.status === 'running' && state.now - state.lastEntryAt > 90000
@@ -112,10 +116,11 @@ function draw() {
 		tile('Progress', tip ? fmt(tip.step) + ' / ' + fmt(total) : '–', fmt(percent, 1) + '%' + (f.epochs ? ' · ' + fmt((f.epochs * percent) / 100, 2) + ' of ' + f.epochs + ' epochs' : ''), percent),
 		tile('Throughput', tip ? fmt(tip.tokensPerSecond) + ' tok/s' : '–', tip && tip.gpuMs !== undefined ? 'step ' + fmt(tip.gpuMs + tip.optimizerMs + tip.transferMs) + ' ms' : ''),
 		tile('Time left', state.status === 'running' && tip ? span(eta) : state.status === 'finished' ? 'done' : '–', finishes ? 'finishes about ' + finishes : ''),
+		tile('Tokens seen', tip && f.tokensPerStep ? fmt((tip.step * f.tokensPerStep) / 1e6, 1) + ' M' : '–', f.trainTokens ? 'of ' + fmt(f.trainTokens / 1e6, 1) + ' M per epoch' : ''),
 		tile('Train loss', tip ? fmt(last(ema(steps.slice(-30).map((p) => p.loss), 0.2)), 3) : '–', tip ? 'grad norm ' + fmt(tip.gradNorm, 2) + ' · lr ' + tip.lr.toExponential(2) : ''),
 		tile('Validation', ev ? fmt(ev.loss, 4) : '–', ev ? 'ppl ' + fmt(ev.perplexity, 2) + ' · ' + fmt(ev.bitsPerByte, 3) + ' bpb · step ' + fmt(ev.step) : ''),
 		tile('GPU', gpu ? fmt(gpu.utilization) + '%' : '–', gpu ? fmt(gpu.memoryUsedMiB) + ' / ' + fmt(gpu.memoryTotalMiB) + ' MiB · ' + gpu.temperatureC + ' °C' + (gpu.powerW !== undefined ? ' · ' + fmt(gpu.powerW) + ' W' : '') : 'waiting for nvidia-smi'),
-		tile('CPU · RAM', sys ? fmt(sys.cpuPercent) + '%' : '–', sys ? fmt(sys.memoryUsedBytes / 1073741824, 1) + ' / ' + fmt(sys.memoryTotalBytes / 1073741824, 1) + ' GiB' : '')
+		tile('CPU · RAM', sys ? fmt(sys.cpuPercent) + '%' : '–', sys ? fmt(sys.memoryUsedBytes / 1073741824, 1) + ' / ' + fmt(sys.memoryTotalBytes / 1073741824, 1) + ' GiB' + (sys.memoryUsedBytes / sys.memoryTotalBytes > 0.9 ? ' · low memory' : '') : '')
 	)
 	const loss = steps.map((p) => [p.step, p.loss])
 	const lossSeries = [
@@ -152,7 +157,7 @@ function draw() {
 	for (const line of state.lines.slice(-80)) {
 		const row = document.createElement('div'); row.className = line.level
 		const t = document.createElement('time'); t.textContent = new Date(line.time).toLocaleTimeString() + ' '
-		row.append(t, line.message + (line.text ? ' ' + line.text : '')); log.append(row)
+		row.append(t, line.message + (line.text ? ' ' + brief(line.text) : '')); log.append(row)
 	}
 	if (atEnd) log.scrollTop = log.scrollHeight
 }
