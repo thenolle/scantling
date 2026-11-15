@@ -32,7 +32,7 @@ function layout(c: ModelConfig, batch: number, length: number): Map<string, numb
 
 /** Bytes of device memory a model needs for micro-batches of `batch` sequences of `length` tokens: activations, scratch, weights and gradients. */
 export function estimateGpuBytes(config: ModelConfig, parameters: number, batch: number, length: number): number {
-	let floats = parameters * 2
+	let floats = parameters * 4
 	for (const size of layout(config, batch, length).values()) floats += size
 	return floats * 4
 }
@@ -164,6 +164,15 @@ export class GpuModel {
 		const logits = new Float32Array(rows * this.length * this.config.vocabSize)
 		this.device.download(this.#b('logits'), logits)
 		return logits
+	}
+
+	/** Copies the device weights back onto the CPU parameters. */
+	downloadWeights(): void {
+		for (const param of this.#params.values()) this.device.download(param.weights, param.variable.value.data)
+	}
+
+	parameterBuffers(): { readonly name: string; readonly weights: DeviceBuffer; readonly grads: DeviceBuffer; readonly length: number; readonly rank: number }[] {
+		return [...this.#params].map(([name, param]) => ({ name, weights: param.weights, grads: param.grads, length: param.variable.value.size, rank: param.variable.value.rank }))
 	}
 
 	/** Backward pass for the `rows` sequences of the last `forward`. Adds to the weight gradients; call `zeroGrads` first. */

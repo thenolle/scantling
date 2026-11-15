@@ -94,6 +94,7 @@ if (args.includes('--resume')) {
 	trainer.resume(state.step, state.skippedSteps)
 	logger.info('Resumed', { checkpoint: id, step: state.step })
 }
+if (trainer instanceof GpuTrainer) trainer.uploadFromCpu()
 
 const tokensPerStep = gpuDevice === undefined ? workers * rounds * microBatch * length : gpuMicroBatch * gpuAccumulation * length
 logger.info('Training plan', {
@@ -101,7 +102,7 @@ logger.info('Training plan', {
 	parameters: model.parameterCount(),
 	trainTokens: train.count,
 	validationTokens: validation.count,
-	...(gpuDevice === undefined ? { workers, memoryBudget: formatBytes(budget.trainingMemoryBytes) } : { microBatch: gpuMicroBatch, accumulation: gpuAccumulation, gpuEstimate: formatBytes(estimateGpuBytes(model.config, model.parameterCount(), gpuMicroBatch, length)) }),
+	...(gpuDevice === undefined ? { workers, memoryBudget: formatBytes(budget.trainingMemoryBytes) } : { microBatch: gpuMicroBatch, accumulation: gpuAccumulation, gpuEstimate: formatBytes(estimateGpuBytes(model.config, model.parameterCount(), gpuMicroBatch, length)), optimizerOn: trainer instanceof GpuTrainer && trainer.resident ? 'GPU' : 'CPU' }),
 	tokensPerStep,
 	steps,
 	epochs: Number(((steps * tokensPerStep) / train.count).toFixed(2)),
@@ -113,6 +114,7 @@ logger.info('Training plan', {
 let lastEval = trainer.evaluate(evalSet)
 
 function checkpoint(): void {
+	if (trainer instanceof GpuTrainer) trainer.syncToCpu()
 	lastEval = trainer.evaluate(evalSet)
 	const id = checkpointId(trainer.step)
 	if (store.list().some((meta) => meta.id === id)) return

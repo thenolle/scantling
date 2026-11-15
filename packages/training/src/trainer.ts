@@ -174,4 +174,18 @@ export class Trainer {
 	#variables(): Variable[] {
 		return this.#params.map((entry) => entry.variable)
 	}
+
+	/** The learning rate for the step about to run. */
+	scheduledRate(): number {
+		return this.#schedule(this.#step)
+	}
+
+	/** Records a step whose update was applied elsewhere, such as on the GPU, and returns its metrics. */
+	recordExternal(update: { readonly loss: number; readonly gradNorm: number; readonly learningRate: number; readonly tokens: number; readonly started: number; readonly skipped: boolean }): StepMetrics {
+		if (update.skipped) this.#skipped += 1
+		const step = this.#step
+		this.#step += 1
+		const milliseconds = performance.now() - update.started
+		return { step, loss: update.loss, gradNorm: update.gradNorm, learningRate: update.learningRate, tokens: update.tokens, milliseconds, tokensPerSecond: update.tokens / (milliseconds / 1000), skipped: update.skipped }
+	}
 }
