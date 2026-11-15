@@ -94,9 +94,7 @@ if (command === 'download' || (command === 'extract' && option('--shard') === un
 	}
 } else if (command === 'extract') {
 	const shard = Number(option('--shard'))
-	const stats = extractRange({
-		dump: dumpPath, shard, shards: Number(option('--shards')), out: proseDirectory
-	})
+	extractRange({ dump: dumpPath, shard, shards: Number(option('--shards')), out: proseDirectory })
 } else {
 	console.error('Commands: download [--lang simple|en] [--date latest|YYYYMMDD] [--dir folder] | extract [--lang ..] [--dump file] [--out folder] [--shards 8]')
 	process.exit(1)
