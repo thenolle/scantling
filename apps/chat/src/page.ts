@@ -12,7 +12,7 @@ async function run() {
 	$('stop').disabled = false
 	$('out').textContent = ''
 	$('status').textContent = 'generating…'
-	const body = { prompt: $('prompt').value, maxTokens: Number($('max').value), temperature: Number($('temp').value), topK: Number($('topk').value), topP: Number($('topp').value), repetitionPenalty: Number($('rep').value), raw: $('raw').checked }
+	const body = { prompt: $('prompt').value, maxTokens: Number($('max').value), temperature: Number($('temp').value), topK: Number($('topk').value), topP: Number($('topp').value), repetitionPenalty: Number($('rep').value), raw: $('raw').checked, stopOnLoop: $('loop').checked }
 	try {
 		const response = await fetch('/api/complete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal })
 		if (!response.ok || !response.body) {
@@ -87,6 +87,7 @@ export function chatPage(): string {
 <label>Top-p<input id="topp" type="number" min="0.01" max="1" step="0.05" value="0.95"></label>
 <label>Repetition penalty<input id="rep" type="number" min="1" max="2" step="0.05" value="1.1"></label>
 <label><span>Raw prompt</span><input id="raw" type="checkbox"></label>
+<label><span>Stop on repetition</span><input id="loop" type="checkbox" checked></label>
 <button id="go">Generate</button>
 <button id="stop" disabled>Stop</button>
 <button id="append">Append to prompt</button>

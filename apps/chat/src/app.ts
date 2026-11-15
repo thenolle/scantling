@@ -71,7 +71,7 @@ export function createChatApp(options: ChatOptions): App {
 			const stream = new ReadableStream<Uint8Array>({
 				async start(controller) {
 					try {
-						for await (const item of generate(model, ids, { engine: 'float32', maxNewTokens: request.maxTokens, seed: request.seed, sampling, stopTokens, text: new StreamDecoder(tokenizer, { skipSpecial: true }), signal: abort.signal })) {
+						for await (const item of generate(model, ids, { engine: 'float32', maxNewTokens: request.maxTokens, seed: request.seed, sampling, stopTokens, stopOnLoop: request.stopOnLoop, text: new StreamDecoder(tokenizer, { skipSpecial: true }), signal: abort.signal })) {
 							if (item.type === 'token') {
 								if (item.text !== '') controller.enqueue(event({ text: item.text }))
 							} else {

@@ -38,7 +38,7 @@ test('greedy decoding is repeatable and requests are validated', async () => {
 	expect((await post({ prompt: 1 })).status).toBe(400)
 	expect((await post({ prompt: 'x'.repeat(30_000) })).status).toBe(400)
 	expect('error' in parseCompletion({ prompt: 'x', topP: 5 })).toBe(true)
-	expect(parseCompletion({ prompt: 'x' })).toMatchObject({ maxTokens: 128, temperature: 0.7, raw: false })
+	expect(parseCompletion({ prompt: 'x' })).toMatchObject({ maxTokens: 128, temperature: 0.7, raw: false, stopOnLoop: true })
 })
 
 test('only loopback hosts and same-origin posts are accepted', async () => {

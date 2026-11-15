@@ -8,6 +8,7 @@ export interface CompletionRequest {
 	readonly seed: number
 	/** When true the prompt is encoded as given, without the start-of-file marker. */
 	readonly raw: boolean
+	readonly stopOnLoop: boolean
 }
 
 const MAX_PROMPT_CHARACTERS = 20_000
@@ -28,6 +29,8 @@ export function parseCompletion(body: unknown): CompletionRequest | { readonly e
 	try {
 		const raw = record['raw']
 		if (raw !== undefined && typeof raw !== 'boolean') throw new RangeError('raw must be true or false')
+		const stopOnLoop = record['stopOnLoop']
+		if (stopOnLoop !== undefined && typeof stopOnLoop !== 'boolean') throw new RangeError('stopOnLoop must be true or false')
 		return {
 			prompt,
 			maxTokens: read('maxTokens', 128, 1, 512, true),
@@ -36,7 +39,8 @@ export function parseCompletion(body: unknown): CompletionRequest | { readonly e
 			topP: read('topP', 0.95, 0.01, 1),
 			repetitionPenalty: read('repetitionPenalty', 1.1, 1, 2),
 			seed: read('seed', 1, 0, 2 ** 31, true),
-			raw: raw ?? false
+			raw: raw ?? false,
+			stopOnLoop: stopOnLoop ?? true
 		}
 	} catch (error) {
 		return { error: error instanceof Error ? error.message : String(error) }

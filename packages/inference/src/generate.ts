@@ -6,6 +6,7 @@ import { sampleToken } from './sampler.ts'
 import type { Candidate, SamplingOptions } from './sampler.ts'
 import { InferenceSession } from './session.ts'
 import { StopMatcher } from './stop.ts'
+import { endsInLoop } from './loop.ts'
 
 /** Turns token ids into text incrementally. `StreamDecoder` from the tokenizer package fits. */
 export interface TokenText {
@@ -31,9 +32,11 @@ export interface GenerateOptions {
 	readonly trace?: number
 	/** Which decoding engine to use. Defaults to `tensor`. */
 	readonly engine?: EngineKind
+	/** Finish with reason 'loop' when the generated text ends in a repeated block. */
+	readonly stopOnLoop?: boolean
 }
 
-export type FinishReason = 'length' | 'stop-token' | 'stop-sequence' | 'cancelled' | 'context'
+export type FinishReason = 'length' | 'stop-token' | 'stop-sequence' | 'cancelled' | 'context' | 'loop'
 
 export type GenerationEvent =
 	| { readonly type: 'token'; readonly token: number; readonly text: string; readonly probability: number; readonly candidates: readonly Candidate[]; readonly position: number }
@@ -55,6 +58,7 @@ export async function* generate(model: Transformer, prompt: readonly number[], o
 	const random = new Random(options.seed ?? 1)
 	const matcher = options.stopSequences !== undefined && options.stopSequences.length > 0 ? new StopMatcher(options.stopSequences) : undefined
 	const history = [...prompt]
+	const produced: number[] = []
 	let logits = engine.feed(prompt.slice(-(maxSeqLen - 1)))
 	let generated = 0
 	const finish = (reason: FinishReason, hold: boolean): GenerationEvent => ({ type: 'done', reason, tokens: generated, tail: hold ? (matcher?.flush() ?? '') + (options.text?.flush() ?? '') : '' })
@@ -69,12 +73,17 @@ export async function* generate(model: Transformer, prompt: readonly number[], o
 			return
 		}
 		history.push(sampled.token)
+		produced.push(sampled.token)
 		generated += 1
 		const piece = options.text?.push(sampled.token) ?? ''
 		const matched = matcher?.push(piece) ?? { emit: piece, stopped: false }
 		yield { type: 'token', token: sampled.token, text: matched.emit, probability: sampled.probability, candidates: sampled.candidates, position: history.length - 1 }
 		if (matched.stopped) {
 			yield finish('stop-sequence', false)
+			return
+		}
+		if (options.stopOnLoop === true && endsInLoop(produced)) {
+			yield finish('loop', true)
 			return
 		}
 		if (generated === options.maxNewTokens) break
