@@ -1,8 +1,10 @@
 import { mkdir } from 'node:fs/promises'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import { collectTextFiles } from '@scantling/tokenizer'
 import type { Tokenizer } from '@scantling/tokenizer'
 import { isCodeLikePath, isDataList, isGeneratedPath, isMinifiedText, isSensitivePath, scanDocument } from './scan.ts'
+import { SEPARATOR } from './wikipedia/extract.ts'
 import { TokenWriter } from './store.ts'
 import { encodeAll } from './encode.ts'
 
@@ -41,6 +43,7 @@ export interface BuildOptions {
 	readonly maxFileBytes?: number
 	/** Whole-number repeat counts for training documents under a path prefix. Validation is never repeated. */
 	readonly weights?: Readonly<Record<string, number>>
+	readonly prose?: readonly string[]
 }
 
 export interface DatasetReport {
@@ -99,6 +102,10 @@ export async function buildDataset(options: BuildOptions): Promise<DatasetReport
 	const { tokenizer } = options
 	const fileId = tokenizer.idOf('<|file|>')
 	const endId = tokenizer.idOf('<|endfile|>')
+	const bosId = tokenizer.idOf('<|bos|>')
+	const eosId = tokenizer.idOf('<|eos|>')
+	let proseDocuments = 0
+	let proseEntries = 0
 	const files: Disposition[] = []
 	const seen = new Set<string>()
 	const trainLines = new Set<string>()
@@ -169,6 +176,43 @@ export async function buildDataset(options: BuildOptions): Promise<DatasetReport
 			}
 			if ((index + 1) % 500 === 0) options.onProgress?.({ phase: 'write', done: index + 1, total: included.length })
 		}
+		for (const directory of options.prose ?? []) {
+			for (const name of readdirSync(directory).filter((entry) => entry.endsWith('.prose')).sort()) {
+				const path = join(directory, name)
+				const repeat = repeatOf(path, options.weights)
+				const shardTrain: string[] = []
+				const shardValidation: string[] = []
+				for (const article of readFileSync(path, 'utf8').split(SEPARATOR)) {
+					if (article.length === 0) continue
+					const scan = scanDocument(article)
+					if (scan.secrets.length > 0) continue
+					const title = article.slice(0, Math.max(0, article.indexOf('\n')))
+					const target = splitOf(`${path}#${title}`, percent) === 'train' ? shardTrain : shardValidation
+					target.push(scan.text)
+				}
+				for (const [split, texts] of [['train', shardTrain], ['validation', shardValidation]] as const) {
+					if (texts.length === 0) continue
+					const encodedShard = await encodeAll(texts, tokenizer, { ...(options.workers === undefined ? {} : { workers: options.workers }) })
+					let tokens = 0
+					for (let index = 0; index < texts.length; index += 1) {
+						const ids = [bosId, ...encodedShard.ids[index]!, eosId]
+						bytes += Buffer.byteLength(texts[index]!, 'utf8')
+						tokens += ids.length
+						if (split === 'train') {
+							for (let copy = 0; copy < repeat; copy += 1) train?.append(ids)
+							trainTokens += ids.length * repeat
+						} else {
+							validation?.append(ids)
+							validationTokens += ids.length
+						}
+					}
+					files.push({ path: split === 'train' ? path : `${path}#validation`, status: 'included', split, tokens, ...(split === 'train' ? { repeat } : {}) })
+					proseDocuments += texts.length
+					proseEntries += 1
+					options.onProgress?.({ phase: 'write', done: proseDocuments, total: 0 })
+				}
+			}
+		}
 	} finally {
 		train?.close()
 		validation?.close()
@@ -180,7 +224,7 @@ export async function buildDataset(options: BuildOptions): Promise<DatasetReport
 		createdAt: new Date().toISOString(),
 		tokenizer: { vocabSize: tokenizer.vocabSize, sha256: sha256(tokenizer.toJson()) },
 		validationPercent: percent,
-		totals: { documents: files.filter((file) => file.status === 'included').length, bytes, trainTokens, validationTokens },
+		totals: { documents: files.filter((file) => file.status === 'included').length - proseEntries + proseDocuments, bytes, trainTokens, validationTokens },
 		files
 	}
 	const manifestPath = options.approved ? join(options.outputDirectory, 'manifest.json') : undefined
