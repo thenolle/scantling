@@ -21,7 +21,7 @@ applyWeights(model.namedParameters(), state.weights)
 
 const train = TokenFile.open(`${dataset}/train.tokens`)
 const validation = TokenFile.open(`${dataset}/validation.tokens`)
-const length = Math.min(128, model.config.maxSeqLen)
+const length = Math.min(Number(option('--length') ?? 128), model.config.maxSeqLen)
 const batches = spreadEvaluationBatches(validation, length, 8, Number(option('--eval-batches') ?? 64))
 const targets = batches.flatMap((batch) => Array.from(batch.targets))
 

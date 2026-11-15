@@ -27,3 +27,17 @@ test('staging copies source from permissive packages once and records them', asy
 	expect((await readdir(join(root, 'out', 'good@1.0.0'))).sort()).toEqual(['LICENSE', 'index.js'])
 	expect(await Bun.file(join(root, 'out', 'licenses.json')).exists()).toBe(true)
 })
+
+test('staging reads Bun cache folders, including scoped packages', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'cache-'))
+	const write = (path: string, text: string) => Bun.write(join(root, path), text)
+	await write('cache/plain@1.0.0@@@1/package.json', JSON.stringify({ name: 'plain', version: '1.0.0', license: 'MIT' }))
+	await write('cache/plain@1.0.0@@@1/index.js', 'export const a = 1\n')
+	await write('cache/@scope/inner@2.0.0@@@1/package.json', JSON.stringify({ name: '@scope/inner', version: '2.0.0', license: 'ISC' }))
+	await write('cache/@scope/inner@2.0.0@@@1/index.ts', 'export const b = 2\n')
+	await write('cache/closed@1.0.0@@@1/package.json', JSON.stringify({ name: 'closed', version: '1.0.0', license: 'GPL-3.0' }))
+	await write('cache/closed@1.0.0@@@1/index.js', 'closed')
+	const report = await stageLicensed({ from: join(root, 'none'), caches: [join(root, 'cache')], to: join(root, 'out'), maxBytes: 1_000_000 })
+	expect(report.staged.map((entry) => entry.package).sort()).toEqual(['@scope/inner', 'plain'])
+	expect(report.rejected.get('GPL-3.0')).toBe(1)
+})

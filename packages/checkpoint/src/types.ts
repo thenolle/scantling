@@ -1,3 +1,4 @@
+import type { ModelConfigInput } from '@scantling/nn'
 import type { RandomState, Tensor } from '@scantling/tensor'
 
 /** Everything needed to resume a training run exactly. */
@@ -5,7 +6,7 @@ export interface CheckpointState {
 	readonly step: number
 	readonly skippedSteps: number
 	/** The model configuration, as plain JSON. */
-	readonly config: unknown
+	readonly config: ModelConfigInput
 	readonly weights: ReadonlyMap<string, Tensor>
 	readonly optimizer: { readonly kind: string; readonly step: number; readonly tensors: ReadonlyMap<string, Tensor> }
 	/** Named random generators, such as the batch sampler. */

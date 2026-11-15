@@ -30,9 +30,10 @@ function summarize(manifest: DatasetManifest): void {
 
 if (command === 'build') {
 	const tokenizerPath = option('--tokenizer') ?? 'data/tokenizer.json'
+	const cache = option('--cache')
 	if (inputs.length === 0) throw new Error('Usage: build --input <path>... [--tokenizer file] [--out dir] [--validation 5] [--approve] [--weight <path>=<n>]')
 	const approved = rest.includes('--approve')
-	const report = await buildDataset({ inputs, tokenizer: Tokenizer.fromJson(await Bun.file(tokenizerPath).text()), outputDirectory: option('--out') ?? 'data/datasets/default', validationPercent: Number(option('--validation') ?? 5), approved, weights })
+	const report = await buildDataset({ inputs, tokenizer: Tokenizer.fromJson(await Bun.file(tokenizerPath).text()), outputDirectory: option('--out') ?? 'data/datasets/default', validationPercent: Number(option('--validation') ?? 5), approved, weights, ...(cache === undefined ? {} : { caches: [cache] }) })
 	summarize(report.manifest)
 	if (rest.includes('--verbose')) { for (const file of report.manifest.files) if (file.status === 'excluded') console.log(`  ${file.reason}  ${file.path}`) }
 	if (report.manifestPath === undefined) console.log('\nDry run: nothing was written. Review the exclusions, then repeat the command with --approve to write the dataset.')

@@ -67,6 +67,8 @@ export interface StageOptions {
 	readonly from: string
 	readonly to: string
 	readonly maxBytes: number
+	/** Bun global cache folders: each holds `name@version@@@1` package folders, scoped ones under an `@scope` folder. */
+	readonly caches?: readonly string[]
 }
 
 export interface StagedPackage {
@@ -84,6 +86,19 @@ export interface StageReport {
 	readonly bytes: number
 }
 
+async function cachePackageDirectories(cache: string): Promise<string[]> {
+	const found: string[] = []
+	for (const entry of await entriesOf(cache)) {
+		if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+		if (entry.name.startsWith('@') && !entry.name.includes('@', 1)) {
+			for (const inner of await entriesOf(join(cache, entry.name))) if (inner.isDirectory()) found.push(join(cache, entry.name, inner.name))
+		} else {
+			found.push(join(cache, entry.name))
+		}
+	}
+	return found
+}
+
 /**
  * Copies the source of permissively licensed packages found in `node_modules` folders under `from` into `to`,
  * once per name and version, together with their licence files, and records what it copied in `licenses.json`.
@@ -92,19 +107,19 @@ export async function stageLicensed(options: StageOptions): Promise<StageReport>
 	const candidates = new Map<string, { directory: string; name: string; version: string; license: string }>()
 	const rejected = new Map<string, number>()
 	const seen = new Set<string>()
-	for (const modules of await findModules(options.from)) {
-		for (const directory of await packageDirectories(modules)) {
-			const pkg = (await Bun.file(join(directory, 'package.json')).json().catch(() => undefined)) as Record<string, unknown> | undefined
-			if (pkg === undefined || typeof pkg['name'] !== 'string') continue
-			const version = typeof pkg['version'] === 'string' ? pkg['version'] : '0.0.0'
-			const key = `${pkg['name']}@${version}`
-			if (seen.has(key)) continue
-			seen.add(key)
-			const license = licenseOf(pkg)
-			if (isPermissive(license)) candidates.set(key, { directory, name: pkg['name'], version, license: license! })
-			else rejected.set(license ?? 'none declared', (rejected.get(license ?? 'none declared') ?? 0) + 1)
-		}
+	const consider = async (directory: string): Promise<void> => {
+		const pkg = (await Bun.file(join(directory, 'package.json')).json().catch(() => undefined)) as Record<string, unknown> | undefined
+		if (pkg === undefined || typeof pkg['name'] !== 'string') return
+		const version = typeof pkg['version'] === 'string' ? pkg['version'] : '0.0.0'
+		const key = `${pkg['name']}@${version}`
+		if (seen.has(key)) return
+		seen.add(key)
+		const license = licenseOf(pkg)
+		if (isPermissive(license)) candidates.set(key, { directory, name: pkg['name'], version, license: license! })
+		else rejected.set(license ?? 'none declared', (rejected.get(license ?? 'none declared') ?? 0) + 1)
 	}
+	for (const modules of await findModules(options.from)) for (const directory of await packageDirectories(modules)) await consider(directory)
+	for (const cache of options.caches ?? []) for (const directory of await cachePackageDirectories(cache)) await consider(directory)
 	const ordered = [...candidates.entries()].sort((a, b) => String(Bun.hash(a[0])).localeCompare(String(Bun.hash(b[0]))))
 	const staged: StagedPackage[] = []
 	let total = 0
@@ -136,8 +151,9 @@ if (import.meta.main) {
 	const option = (name: string): string | undefined => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
 	const from = option('--from')
 	const to = option('--to')
+	const cache = option('--cache')
 	if (from === undefined || to === undefined) throw new Error('Usage: corpus --from <folder with projects> --to <output folder> [--max-mb 200]')
-	const report = await stageLicensed({ from, to, maxBytes: Number(option('--max-mb') ?? 200) * 1_048_576 })
+	const report = await stageLicensed({ from, to, maxBytes: Number(option('--max-mb') ?? 200) * 1_048_576, ...(cache === undefined ? {} : { caches: [cache] }) })
 	console.log(`Staged ${report.staged.length} packages, ${(report.bytes / 1_048_576).toFixed(1)} MiB, into ${to}`)
 	const refused = [...report.rejected].sort((a, b) => b[1] - a[1]).slice(0, 8)
 	console.log(`Refused ${[...report.rejected.values()].reduce((sum, count) => sum + count, 0)} packages by licence: ${refused.map(([license, count]) => `${license} x${count}`).join(', ')}`)
